@@ -1,0 +1,13 @@
+{
+  "name": "Café · Control",
+  "short_name": "Café",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f6f2ec",
+  "theme_color": "#5b3a26",
+  "lang": "es",
+  "icons": [
+    { "src": "icono.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}
