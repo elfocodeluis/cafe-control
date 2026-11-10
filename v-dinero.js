@@ -3,9 +3,9 @@
    ===================================================================== */
 const CATS_GASTO = [['gasolina', '⛽', 'Gasolina'], ['taxis', '🚕', 'Taxis / transporte'], ['empaque', '📦', 'Empaque'], ['bolsas', '🛍️', 'Bolsas'], ['insumos', '🧴', 'Insumos'], ['servicios', '💡', 'Servicios'], ['otros', '🧾', 'Otros']];
 const catGasto = (k) => CATS_GASTO.find((c) => c[0] === k) || ['otros', '🧾', k || 'Otros'];
-const TIPO_DIN = { venta: 'Venta', reverso: 'Reverso', pago_comision: 'Comisión', pago_envio: 'Pago a paquetería', gasto: 'Gasto', ingreso: 'Ingreso', deposito: 'Depósito', retiro: 'Retiro', ajuste: 'Ajuste', entrega: 'Efectivo recibido', pago_proveedor: 'Pago a proveedor', compra: 'Compra' };
+const TIPO_DIN = { venta: 'Venta', reverso: 'Reverso', pago_comision: 'Comisión', pago_envio: 'Pago a paquetería', gasto: 'Gasto', ingreso: 'Ingreso', deposito: 'Depósito', retiro: 'Retiro', ajuste: 'Ajuste', entrega: 'Efectivo recibido', pago_proveedor: 'Pago a proveedor', compra: 'Compra', extra: '🎁 Extra / propina (del vendedor)' };
 const tipoDin = (m) => m.tipo === 'venta' ? (m.cuenta === 'banco' ? '🔁 Transferencia de venta' : 'Venta en efectivo')
-  : m.tipo === 'pago_comision' ? (m.venta_id ? 'Comisión (se la quedó)' : m.cuenta === 'caja' ? 'Comisión tomada de su efectivo' : 'Comisión pagada del banco')
+  : m.tipo === 'pago_comision' ? (m.venta_id ? 'Comisión (se la quedó)' : m.cuenta === 'caja' ? 'Comisión/extras tomados de su efectivo' : 'Comisión/extras pagados del banco')
   : m.tipo === 'deposito' ? (m.cuenta === 'banco' ? '🏧 Depósito de efectivo' : 'Retiro de caja → banco') : (TIPO_DIN[m.tipo] || m.tipo);
 
 // Banco: lo que entró − lo que salió. Con `acumulado` también muestra con cuánto empezó y con cuánto terminó el periodo.
@@ -15,8 +15,9 @@ function bancoCuadre(bp, r, acumulado = true) {
   if (acumulado) filas.push(fila('Había al empezar', bp.inicial, 'ini'));
   filas.push(fila('Transferencias de ventas', bp.transferencias, 'pos', `${bp.transf_num} · de clientes`));
   filas.push(fila('Depósitos de efectivo', bp.depositos, 'pos', `${bp.dep_num} · retiro de caja de vendedores`));
+  if (+bp.extras) filas.push(fila('Extras / propinas', bp.extras, 'pos', 'de clientes · son de los vendedores'));
   if (+bp.ingresos) filas.push(fila('Otros ingresos', bp.ingresos, 'pos'));
-  if (+bp.comisiones) filas.push(fila('Comisiones pagadas', bp.comisiones, 'neg'));
+  if (+bp.comisiones) filas.push(fila('Comisiones y extras pagados', bp.comisiones, 'neg'));
   if (+bp.paqueteria) filas.push(fila('Pagado a paquetería', bp.paqueteria, 'neg'));
   if (+bp.gastos) filas.push(fila('Gastos', bp.gastos, 'neg'));
   if (+bp.proveedores) filas.push(fila('Proveedores y compras', bp.proveedores, 'neg'));
@@ -24,7 +25,7 @@ function bancoCuadre(bp, r, acumulado = true) {
   filas.push(acumulado ? fila('Al cierre', bp.final, 'fin') : fila(r.hoy ? 'Neto de hoy' : 'Neto', +bp.final - +bp.inicial, 'fin'));
   return `<div class="bq">${filas.join('')}</div>`;
 }
-const bancoEntro = (bp) => +bp.transferencias + +bp.depositos + +bp.ingresos + Math.max(0, +bp.otros);
+const bancoEntro = (bp) => +bp.transferencias + +bp.depositos + +bp.ingresos + (+bp.extras || 0) + Math.max(0, +bp.otros);
 const bancoSalio = (bp) => +bp.comisiones + +bp.paqueteria + +bp.gastos + +bp.proveedores + Math.max(0, -bp.otros);
 
 // Utilidad bruta y neta de un periodo. La merma (café que sobra al producir) también cuesta.
@@ -162,9 +163,9 @@ VIEWS['resumen'] = async (v) => {
       ${kpi('Transferencias hoy', cuenta(vt.transferencia), `${pv.reduce((s, p) => s + p.transf_num, 0)} ventas pagadas directo al banco por clientes`, { href: '#/ventas', info: 'Ventas que el cliente pagó por transferencia a la cuenta del banco, a través de cada vendedor. Son distintas a los depósitos de efectivo.',
         cls: +vt.transferencia_pendiente ? 'warn' : '',
         det: pv.filter((p) => p.transf_num).map((p) => `<div class="pv-i"><span><span class="mini-ava">${avatar(p)}</span>${esc(p.nombre)} <span class="muted">· ${p.transf_num} ${p.transf_num === 1 ? 'venta' : 'ventas'}</span></span><b>${money0(p.transferencia)} ${p.transf_pend_num ? `<span class="foco foco-am" title="${p.transf_pend_num} por verificar"></span>` : '<span class="foco foco-ok" title="verificadas"></span>'}</b></div>`).join('') || '<div class="small muted">Sin transferencias hoy</div>' })}
-      ${kpi('Por pagar', cuenta(porPagar), porPagar ? 'Comisiones de transferencias y paquetería' : 'Todo pagado ✓',
+      ${kpi('Por pagar', cuenta(porPagar), porPagar ? 'Comisiones, extras de vendedores y paquetería' : 'Todo pagado ✓',
         { href: '#/caja?ir=porpagar', cls: porPagar ? 'warn' : '', info: 'Las ventas por transferencia caen completas al banco: ahí se le debe la comisión al vendedor y el envío a la paquetería.',
-          det: [...pv.filter((p) => +p.comision_pendiente > 0).map((p) => `<div class="pv-i"><span>Comisión ${esc(p.nombre)}</span><b>${money0(p.comision_pendiente)}</b></div>`),
+          det: [...pv.filter((p) => +p.comision_pendiente > 0).map((p) => `<div class="pv-i"><span>Comisión${+p.extra ? ' + extras' : ''} ${esc(p.nombre)}</span><b>${money0(p.comision_pendiente)}</b></div>`),
             +di.por_pagar_paqueteria ? `<div class="pv-i"><span>Paquetería</span><b>${money0(di.por_pagar_paqueteria)}</b></div>` : ''].join('') })}
       ${kpi('Por verificar', cuenta(di.por_verificar), di.por_verificar_num ? `${di.por_verificar_num} transferencias que aún no confirmas en tu banca` : 'Todas las transferencias están confirmadas ✓',
         { cls: di.por_verificar_num ? 'warn' : '', href: '#/ventas?pend=1', info: 'Transferencias que un vendedor registró pero que todavía no revisas en tu banco. No cuentan en Banco hasta que las marques.',
@@ -234,7 +235,7 @@ function bindMovs(box) {
    No hay caja de oficina: el efectivo lo trae cada vendedor hasta que lo deposita al banco.
    Comisiones de ventas por transferencia y la paquetería quedan "por pagar". */
 VIEWS['caja'] = async (v, q) => {
-  const ACCIONES = [['deposito', '🏧', 'Depósito', 'efectivo de un vendedor'], ['pago_comision', '🎁', 'Pagar comisión', 'de transferencias'], ['pago_envio', '📦', 'Pagar paquetería', 'envíos pendientes'],
+  const ACCIONES = [['deposito', '🏧', 'Depósito', 'efectivo de un vendedor'], ['pago_comision', '🎁', 'Pagar comisión', 'y extras de vendedores'], ['pago_envio', '📦', 'Pagar paquetería', 'envíos pendientes'],
     ['gasto', '🧾', 'Gasto', 'gasolina, bolsas…'], ['pago_proveedor', '🤝', 'Pagar proveedor', 'abonar a deuda'], ['ingreso', '➕', 'Otro ingreso', 'que no es venta'], ['ajuste', '⚖️', 'Ajuste', 'corregir saldo']];
   v.innerHTML = `<div class="page-head"><div><span class="eyebrow"><span class="vivo"></span>En vivo · hoy</span><h1>Caja y banco</h1><div class="muted small">${fechaDia(new Date().toISOString())} · quién trae el efectivo, qué entró al banco y qué falta pagar</div></div></div>
     <div class="acciones">${ACCIONES.map(([k, e, t, s]) => `<button type="button" class="tile tile-sm" data-op="${k}"><span class="tile-e">${e}</span><span class="tile-t">${t}</span><span class="tile-s">${s}</span></button>`).join('')}</div>
@@ -280,12 +281,12 @@ VIEWS['caja'] = async (v, q) => {
       <div data-panel="caja:pagar">
       <div class="card porpagar ${totPorPagar ? 'warn' : ''}" id="porpagar">
         <div class="card-head"><h2>🧾 Por pagar</h2><span class="badge ${totPorPagar ? 'b-warn' : 'b-ok'}">${totPorPagar ? `${money0(totPorPagar)} pendiente` : 'Todo pagado ✓'}</span></div>
-        <div class="small muted" style="margin-bottom:10px">Las ventas por transferencia caen completas al banco, así que ahí se le debe la comisión al vendedor y el envío a la paquetería (cuentan en cuanto verificas la transferencia). El vendedor puede tomar su comisión del efectivo que ya trae.</div>
+        <div class="small muted" style="margin-bottom:10px">Las ventas por transferencia caen completas al banco, así que ahí se le debe la comisión al vendedor y el envío a la paquetería (cuentan en cuanto verificas la transferencia). Los <b>extras</b> (propinas o servicio extra que el cliente transfirió de más) también son del vendedor. Se pagan del banco o se descuentan del efectivo que ya trae.</div>
         <div class="pp-list">
           ${vs.map((x) => `<div class="pp ${+x.comision_pendiente ? '' : 'ok'}"><span class="mini-ava">${avatar(x)}</span>
-            <div><b>Comisiones de ${esc(x.nombre)}</b><div class="small muted">${+x.comision_pendiente ? `de transferencias ya verificadas, sin pagar` : 'No se le debe nada'}${+x.comision_pagada ? ` · pagado ${esc(per)} ${money0(x.comision_pagada)}` : ''}</div></div>
+            <div><b>Comisiones${+x.extra ? ' y extras' : ''} de ${esc(x.nombre)}</b><div class="small muted">${+x.comision_pendiente ? `de transferencias ya verificadas, sin pagar` : 'No se le debe nada'}${+x.extra ? ` · 🎁 extras ${esc(per)} ${money0(x.extra)} (${x.extra_num}) · <a href="#/ventas?v=${x.vendedor_id}">ver sus ventas</a>` : ''}${+x.comision_pagada ? ` · pagado ${esc(per)} ${money0(x.comision_pagada)}` : ''}</div></div>
             <b class="pp-m">${money0(x.comision_pendiente)}</b>
-            ${+x.comision_pendiente ? `<div class="pp-b"><button class="btn btn-sm" data-pcom="${x.vendedor_id}" data-o="caja" ${+x.en_poder > 0 ? '' : 'disabled'}>💵 La toma de su efectivo</button><button class="btn btn-sm btn-primary" data-pcom="${x.vendedor_id}" data-o="banco">🏦 Pagar del banco</button></div>` : '<span class="pp-b small muted">✓</span>'}
+            ${+x.comision_pendiente ? `<div class="pp-b"><button class="btn btn-sm" data-pcom="${x.vendedor_id}" data-o="caja" ${+x.en_poder > 0 ? '' : 'disabled'}>💵 Descontar de su efectivo</button><button class="btn btn-sm btn-primary" data-pcom="${x.vendedor_id}" data-o="banco">🏦 Pagar del banco</button></div>` : '<span class="pp-b small muted">✓</span>'}
           </div>`).join('')}
           <div class="pp ${+pp.paqueteria ? '' : 'ok'}"><span class="mini-ava mini-of">📦</span>
             <div><b>Paquetería</b><div class="small muted">${+pp.paqueteria ? `envíos ya cobrados y verificados, sin pagar` : 'No se le debe nada'}${+pg.paqueteria ? ` · pagado ${esc(per)} ${money0(pg.paqueteria)}` : ''}</div></div>
@@ -294,7 +295,7 @@ VIEWS['caja'] = async (v, q) => {
           </div>
         </div>
         ${+pg.paqueteria || +pg.comisiones_banco || +pg.comisiones_efectivo ? `<div class="pp-hecho"><b>Pagos hechos ${esc(per)}:</b>
-          <span>📦 a paquetería ${money0(pg.paqueteria)}</span><span>🏦 comisiones del banco ${money0(pg.comisiones_banco)}</span><span>💵 comisiones tomadas del efectivo ${money0(pg.comisiones_efectivo)}</span></div>` : ''}
+          <span>📦 a paquetería ${money0(pg.paqueteria)}</span><span>🏦 comisiones/extras del banco ${money0(pg.comisiones_banco)}</span><span>💵 comisiones/extras tomados del efectivo ${money0(pg.comisiones_efectivo)}</span></div>` : ''}
       </div>
 
       </div>
@@ -306,10 +307,11 @@ VIEWS['caja'] = async (v, q) => {
         <div class="vrow"><span>🔁 Transferencias de ventas (al banco)</span><b>${money0(x.transferencia)}</b></div>
         ${+x.transf_pendiente ? `<div class="vrow sub warn"><span>de ellas por verificar</span><b>${money0(x.transf_pendiente)}</b></div>` : ''}
         <div class="vrow sub"><span>comisión ganada en transferencias</span><b>${money0(x.comision_transf)}</b></div>
+        ${+x.extra ? `<div class="vrow"><span>🎁 Extras / propinas (son suyos)</span><b>${money0(x.extra)} <span class="muted small">· ${x.extra_num}</span></b></div>` : ''}
         ${+x.comision_pagada ? `<div class="vrow"><span>🎁 Comisión pagada</span><b>${money0(x.comision_pagada)}</b></div>` : ''}
         <div class="vrow"><span>🏧 Depositó al banco (retiro de caja)</span><b>${money0(x.depositado)}</b></div>
         <div class="vrow tot"><span>Trae en efectivo ahora</span><b>${money0(x.en_poder)}</b></div>
-        ${+x.comision_pendiente ? `<div class="vrow tot debe"><span>Le debemos de comisión</span><b>${money0(x.comision_pendiente)}</b></div>` : ''}
+        ${+x.comision_pendiente ? `<div class="vrow tot debe"><span>Le debemos (comisión${+x.extra ? ' + extras' : ''})</span><b>${money0(x.comision_pendiente)}</b></div>` : ''}
       </div>`).join('')}</div>
 
       ${paqVs.length ? `<div class="card"><div class="card-head"><h2>📦 Paquetería · ${esc(per)}</h2><span class="badge b-ok">siempre por transferencia, por adelantado</span></div>
@@ -377,8 +379,8 @@ VIEWS['caja'] = async (v, q) => {
       </div>
       <div data-panel="hist:vend" hidden>
       <div class="card"><div class="card-head"><h2>Por vendedor · ${esc(rh.etiqueta)}</h2></div>
-        <div class="tbl-wrap"><table class="tbl"><thead><tr><th>Vendedor</th><th class="num">Cobró en efectivo</th><th class="num">🔁 Transf. de ventas</th><th class="num">🏧 Depósitos de efectivo</th><th class="num">Comisión ganada</th><th class="num">Comisión pagada</th></tr></thead><tbody>
-          ${h.vendedores.map((x) => { const b = hb.por_vendedor.find((y) => y.vendedor_id === x.vendedor_id) || {}; return `<tr><td><span class="mini-ava">${avatar(x)}</span> <b>${esc(x.nombre)}</b></td><td class="num">${money0(x.efectivo)}</td><td class="num">${money0(x.transferencia)}${+x.transf_pendiente ? `<div class="small warn-t">${money0(x.transf_pendiente)} por verificar</div>` : ''}</td><td class="num">${money0(b.depositos || 0)}<div class="small muted">${b.dep_num || 0} depósitos</div></td><td class="num">${money0(x.comision)}</td><td class="num">${money0(x.comision_pagada)}</td></tr>`; }).join('')}
+        <div class="tbl-wrap"><table class="tbl"><thead><tr><th>Vendedor</th><th class="num">Cobró en efectivo</th><th class="num">🔁 Transf. de ventas</th><th class="num">🏧 Depósitos de efectivo</th><th class="num">Comisión ganada</th><th class="num">🎁 Extras</th><th class="num">Comisión pagada</th></tr></thead><tbody>
+          ${h.vendedores.map((x) => { const b = hb.por_vendedor.find((y) => y.vendedor_id === x.vendedor_id) || {}; return `<tr><td><span class="mini-ava">${avatar(x)}</span> <b>${esc(x.nombre)}</b></td><td class="num">${money0(x.efectivo)}</td><td class="num">${money0(x.transferencia)}${+x.transf_pendiente ? `<div class="small warn-t">${money0(x.transf_pendiente)} por verificar</div>` : ''}</td><td class="num">${money0(b.depositos || 0)}<div class="small muted">${b.dep_num || 0} depósitos</div></td><td class="num">${money0(x.comision)}</td><td class="num">${+x.extra ? `${money0(x.extra)}<div class="small muted">${x.extra_num} ventas</div>` : '—'}</td><td class="num">${money0(x.comision_pagada)}</td></tr>`; }).join('')}
         </tbody></table></div></div>
       ${paqVs.length ? `<div class="card"><div class="card-head"><h2>📦 Paquetería · ${esc(rh.etiqueta)}</h2></div>
         <div class="tbl-wrap"><table class="tbl"><thead><tr><th>Vendedor</th><th class="num">Envíos</th><th class="num">Cobrado (al banco)</th><th class="num">A paquetería</th><th class="num">Comisión</th><th class="num">Costo café</th><th class="num">Utilidad bruta</th></tr></thead><tbody>
@@ -392,7 +394,7 @@ VIEWS['caja'] = async (v, q) => {
 
   const TIT = {
     deposito: ['🏧 Depósito de efectivo', 'El vendedor lleva al banco el efectivo de sus ventas (retiro de su caja). No es una venta: queda registrado quién lo depositó.'],
-    pago_comision: ['🎁 Pagar comisión', 'Comisiones de ventas por transferencia (ese dinero cayó completo al banco). Se pagan del banco, o el vendedor la toma del efectivo que trae.'],
+    pago_comision: ['🎁 Pagar comisión y extras', 'Comisiones de ventas por transferencia y extras (propinas que el cliente transfirió de más). Ese dinero cayó al banco: se paga del banco, o se descuenta del efectivo que trae el vendedor.'],
     pago_envio: ['📦 Pagar a la paquetería', 'Lo que se le debe a la paquetería por los envíos ya cobrados.'],
     gasto: ['🧾 Registrar gasto', 'Dinero que sale para operar: gasolina, bolsas, empaque, taxis…'],
     pago_proveedor: ['🤝 Pagar a proveedor', 'Abona a lo que se debe de mercancía a consignación o crédito.'],

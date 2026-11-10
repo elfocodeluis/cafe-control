@@ -356,6 +356,11 @@ input[type=number] { font-variant-numeric: tabular-nums; }
 .b-warn { background: var(--warn-soft); color: var(--warn); border-color: transparent; }
 .b-err { background: var(--err-soft); color: var(--err); border-color: transparent; }
 .b-brand { background: var(--brand-soft); color: var(--brand); border-color: transparent; }
+.b-extra { background: color-mix(in srgb, #e8a400 18%, transparent); color: #a86f00; border-color: transparent; font-weight: 600; }
+:root[data-theme="dark"] .b-extra { color: #f2c14e; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .b-extra { color: #f2c14e; } }
+tr.con-extra td:first-child { box-shadow: inset 3px 0 0 #e8a400; }
+.mix-resto { min-height: 44px; display: flex; align-items: center; padding: 0 12px; border-radius: 10px; background: var(--info-soft); color: var(--info); font-size: 1.05rem; }
 .alert { border-radius: 14px; padding: 12px 14px; font-size: 14px; margin-bottom: 14px; border: 1px solid transparent; }
 .alert-warn { background: var(--warn-soft); color: var(--warn); }
 .alert-err { background: var(--err-soft); color: var(--err); }

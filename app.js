@@ -738,22 +738,82 @@ function animarNumeros(root) {
 }
 const cuenta = (n, fmt = 'm') => `<span data-count="${+n || 0}" data-fmt="${fmt}">${fmt === 'n' ? fnum(n) : money0(n)}</span>`;
 
+/* ---------- pago: efectivo / transferencia / mixto + extra (propina por transferencia) ---------- */
+const pagoTr = (v) => (+v.pago_transfer || 0) + (+v.extra || 0);       // lo que se verifica en el banco
+const retenido = (v) => Math.min(+v.comision || 0, +v.pago_efectivo || 0); // comisión que el vendedor se queda del efectivo
+function pagoBadges(v, largo) {
+  if (v.anulada) return '<span class="badge b-err">Cancelada</span>';
+  const m = v.metodo;
+  const lbl = m === 'mixto' ? (largo ? `Mixto · 💵 ${money0(v.pago_efectivo)} + 🏦 ${money0(v.pago_transfer)}` : 'Mixto')
+    : m === 'transferencia' ? (largo ? 'Transferencia' : 'Transf.') : 'Efectivo';
+  const cls = m === 'mixto' ? 'b-brand' : m === 'transferencia' ? 'b-info' : 'b-ok';
+  const tit = m === 'mixto' ? ` title="Efectivo ${money0(v.pago_efectivo)} + transferencia ${money0(v.pago_transfer)}"` : '';
+  return `<span class="badge ${cls}"${tit}>${lbl}</span>`
+    + (+v.extra ? ` <span class="badge b-extra" title="Propina / servicio extra por transferencia: es del vendedor">+${money0(v.extra)} extra</span>` : '')
+    + (pagoTr(v) > 0 ? (v.verificada ? ` <span class="badge b-ok">${largo ? '✓ Verificada' : '✓'}</span>` : ` <span class="badge b-warn">${largo ? 'Por verificar' : 'por verificar'}</span>`) : '')
+    + (v.metodo_original ? ` <span class="badge" title="Se registró como ${esc(v.metodo_original)} y luego se cambió">✎ cambiado</span>` : '');
+}
+// el vendedor cambia el pago de sus ventas mientras el admin no haya confirmado la transferencia; el admin, siempre
+const puedeCambiarPago = (v, admin) => !v.anulada && (admin || !(v.verificada && pagoTr(v) > 0));
+
+function bindCambiarPago(root, ventas, admin, recargar) {
+  $$('[data-cpago]', root).forEach((b) => b.addEventListener('click', () => {
+    const v = ventas.find((x) => x.id === +b.dataset.cpago);
+    if (!v) return;
+    let met = v.metodo;
+    const paq = v.tipo === 'paqueteria';
+    const tot = +v.total;
+    modal(`<h2>Cambiar pago · ${folio(v.id)}</h2>
+      <div class="muted small">${esc(v.cliente)} · total <b>${money(tot)}</b>. Solo cambia <b>cómo</b> pagó: los productos y el total no se tocan.</div>
+      <div class="tiles tiles-3" id="cpm" style="margin-top:14px">
+        ${[['efectivo', '💵', 'Efectivo'], ['transferencia', '🏦', 'Transferencia'], ['mixto', '🔀', 'Mixto']].map(([k, e, t]) =>
+          `<button type="button" class="tile ${met === k ? 'on' : ''}" data-m="${k}" ${paq && k !== 'transferencia' ? 'disabled' : ''}><span class="tile-e">${e}</span><span class="tile-t">${t}</span></button>`).join('')}
+      </div>
+      <label class="field" id="cp-ef" style="margin-top:12px"><span>¿Cuánto pagó en efectivo?</span><input type="number" min="1" step="any" inputmode="decimal" id="cp-efv" value="${met === 'mixto' ? +v.pago_efectivo : ''}" placeholder="Ej. 200"></label>
+      <label class="field" id="cp-ex" style="margin-top:12px"><span>Extra / propina por transferencia <i class="muted">(es del vendedor)</i></span><input type="number" min="0" step="any" inputmode="decimal" id="cp-exv" value="${+v.extra || ''}" placeholder="0"></label>
+      <div class="alert" id="cp-res" style="margin-top:12px"></div>
+      ${v.verificada && pagoTr(v) > 0 ? '<div class="alert alert-warn small">Ya estaba verificada: el monto sale del banco y vuelve a quedar <b>por verificar</b>.</div>' : ''}
+      <div class="modal-actions"><button type="button" class="btn" data-close>Regresar</button><button class="btn btn-primary" id="cp-ok">Guardar cambio</button></div>`);
+    const pinta = () => {
+      $$('#cpm .tile', dlg).forEach((x) => x.classList.toggle('on', x.dataset.m === met));
+      $('#cp-ef', dlg).classList.toggle('hidden', met !== 'mixto');
+      $('#cp-ex', dlg).classList.toggle('hidden', met === 'efectivo');
+      const ef = met === 'efectivo' ? tot : met === 'mixto' ? Math.max(0, +$('#cp-efv', dlg).value || 0) : 0;
+      const ex = met === 'efectivo' ? 0 : Math.max(0, +$('#cp-exv', dlg).value || 0);
+      const tr = tot - ef + ex;
+      $('#cp-res', dlg).innerHTML = met === 'mixto' && (ef <= 0 || ef >= tot) ? `<span style="color:var(--warn)">El efectivo debe ser mayor a $0 y menor a ${money0(tot)}</span>`
+        : `💵 Efectivo <b>${money0(ef)}</b> · 🏦 Al banco <b>${money0(tr)}</b>${ex ? ` (incluye ${money0(ex)} de extra)` : ''}`;
+    };
+    $$('#cpm .tile', dlg).forEach((x) => x.addEventListener('click', () => { met = x.dataset.m; pinta(); if (met === 'mixto') $('#cp-efv', dlg).focus(); }));
+    $('#cp-efv', dlg).addEventListener('input', pinta);
+    $('#cp-exv', dlg).addEventListener('input', pinta);
+    pinta();
+    $('#cp-ok', dlg).addEventListener('click', async (e) => {
+      await run(e.currentTarget, async () => {
+        const r = await API.rpc('cambiar_pago', { p_venta: v.id, p_metodo: met,
+          p_efectivo: met === 'mixto' ? +$('#cp-efv', dlg).value || null : null,
+          p_extra: met === 'efectivo' ? 0 : +$('#cp-exv', dlg).value || 0 });
+        dlg.close();
+        toast(r.sin_cambios ? 'Sin cambios' : `Pago de ${folio(v.id)} actualizado${+r.por_verificar ? ` · ${money0(r.por_verificar)} por verificar en el banco` : ''}`);
+        recargar();
+      });
+    });
+  }));
+}
+
 function ventaHTML(v, admin) {
   const items = (v.items || []).map((i) => {
     const det = i.promo ? ` <span class="badge b-brand">3x2: ${i.piezas} pz, ${i.piezas_gratis} gratis</span>`
       : (i.piezas !== i.cantidad ? ` <span class="small">(${i.piezas} pz)</span>` : '');
     return `<li>${i.cantidad}× ${esc(i.descripcion.replace(' · 3x2', ''))}${det} — ${money(i.subtotal)}</li>`;
   }).join('');
-  const esTr = v.metodo === 'transferencia';
-  const verif = esTr && !v.anulada
-    ? (v.verificada ? '<span class="badge b-ok">✓ Verificada</span>' : '<span class="badge b-warn">Por verificar</span>') : '';
+  const esTr = pagoTr(v) > 0;
   return `<div class="venta ${v.anulada ? 'anulada' : ''} ${esTr && !v.verificada && !v.anulada ? 'pend' : ''}">
     <div class="venta-top">
       <span class="muted small">${folio(v.id)}</span>
       <b>${esc(v.cliente)}</b>
-      <span class="badge ${esTr ? 'b-info' : 'b-ok'}">${esTr ? 'Transferencia' : 'Efectivo'}</span>
+      ${v.anulada ? '' : pagoBadges(v, true)}
       ${v.tipo && v.tipo !== 'tienda' ? `<span class="badge b-brand">${TIPOS_VENTA[v.tipo]}</span>` : ''}
-      ${verif}
       ${admin ? `<span class="badge">${esc(v.vendedor)}</span>` : ''}
       <span class="muted small">${fecha(v.fecha)}</span>
       ${v.anulada ? '<span class="badge b-err">Cancelada</span>' : ''}
@@ -761,7 +821,9 @@ function ventaHTML(v, admin) {
     </div>
     <ul>${items}${+v.envio_cobro ? `<li>Envío — ${money(v.envio_cobro)}</li>` : ''}${+v.descuento ? `<li>Descuento — −${money(v.descuento)}</li>` : ''}</ul>
     <div class="small muted">${[
-      +v.comision && !v.anulada ? `Comisión vendedor: ${money(v.comision)}` : '',
+      +v.comision && !v.anulada ? `Comisión vendedor: ${money(v.comision)}${retenido(v) && retenido(v) < +v.comision ? ` (se quedó ${money0(retenido(v))} del efectivo)` : ''}` : '',
+      +v.extra && !v.anulada ? `<b>Extra para el vendedor: ${money(v.extra)}</b> (cliente transfirió ${money(pagoTr(v))})` : '',
+      v.metodo_original ? `Se registró como ${esc(v.metodo_original)}` : '',
       admin && +v.envio_costo ? `Paquetería: ${money(v.envio_costo)}` : '',
       admin && !v.anulada ? `<b>Queda: ${money(v.total - (+v.comision || 0) - (+v.envio_costo || 0))}</b>` : '',
       v.telefono ? `Tel: ${esc(v.telefono)}` : '',
@@ -769,9 +831,10 @@ function ventaHTML(v, admin) {
       v.nota ? `Nota: ${esc(v.nota)}` : '',
     ].filter(Boolean).join(' · ')}</div>
     ${v.anulada && v.motivo_anulacion ? `<div class="small muted">Motivo de cancelación: ${esc(v.motivo_anulacion)}</div>` : ''}
-    ${admin && !v.anulada ? `<div class="venta-acts">
-      ${esTr ? `<label class="chk"><input type="checkbox" data-verif="${v.id}" ${v.verificada ? 'checked' : ''}> Transferencia verificada en el banco</label>` : '<span></span>'}
-      <button class="btn btn-sm btn-danger" data-anular="${v.id}">Cancelar venta</button></div>` : ''}
+    ${!v.anulada && (admin || puedeCambiarPago(v, admin)) ? `<div class="venta-acts">
+      ${admin && esTr ? `<label class="chk"><input type="checkbox" data-verif="${v.id}" ${v.verificada ? 'checked' : ''}> Transferencia de ${money0(pagoTr(v))} verificada en el banco</label>` : '<span></span>'}
+      <span class="inline">${puedeCambiarPago(v, admin) ? `<button class="btn btn-sm" data-cpago="${v.id}">💱 Cambiar pago</button>` : ''}
+      ${admin ? `<button class="btn btn-sm btn-danger" data-anular="${v.id}">Cancelar venta</button>` : ''}</span></div>` : ''}
   </div>`;
 }
 
@@ -806,11 +869,13 @@ function bindAnular(root, recargar) {
 }
 
 function totalesVentas(ventas) {
-  const t = { total: 0, efectivo: 0, transferencia: 0, pendiente: 0, comision: 0, entregar: 0, num: 0, piezas: 0, gratis: 0, porProd: {} };
+  const t = { total: 0, efectivo: 0, transferencia: 0, extra: 0, extraNum: 0, pendiente: 0, comision: 0, entregar: 0, num: 0, piezas: 0, gratis: 0, porProd: {} };
   ventas.filter((v) => !v.anulada).forEach((v) => {
-    t.total += +v.total; t[v.metodo] += +v.total; t.num++; t.comision += +v.comision || 0;
-    if (v.metodo === 'efectivo') t.entregar += +v.total - (+v.comision || 0);
-    if (v.metodo === 'transferencia' && !v.verificada) t.pendiente += +v.total;
+    t.total += +v.total; t.num++; t.comision += +v.comision || 0;
+    t.efectivo += +v.pago_efectivo || 0; t.transferencia += +v.pago_transfer || 0;
+    if (+v.extra) { t.extra += +v.extra; t.extraNum++; }
+    t.entregar += (+v.pago_efectivo || 0) - retenido(v);
+    if (pagoTr(v) > 0 && !v.verificada) t.pendiente += pagoTr(v);
     (v.items || []).forEach((i) => {
       t.piezas += i.piezas; t.gratis += i.piezas_gratis;
       const k = i.presentacion_id;

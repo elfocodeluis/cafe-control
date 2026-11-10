@@ -28,6 +28,10 @@ VIEWS['ventas'] = async (v, q) => {
   let inv = [];
   let cart = []; // {opcion_id, promo, cantidad}
   let tipo = 'local', metodo = '', ajuste = { modo: 'desc', valor: '' };
+  let efMix = '', extra = ''; // pago mixto: cuánto en efectivo · extra (propina) por transferencia
+  const hayTr = () => metodo === 'transferencia' || metodo === 'mixto';
+  const extraN = () => (hayTr() ? Math.max(0, +extra || 0) : 0);
+  const efectivoN = (t) => (metodo === 'efectivo' ? t : metodo === 'mixto' ? Math.max(0, +efMix || 0) : 0);
   const puedePaq = () => !!vend()?.envio_nacional;
   const envio = () => (tipo === 'paqueteria' ? +perfil.envio_cobro_paqueteria : tipo === 'local' ? +perfil.envio_cobro_local : 0);
   const opDe = (id) => catalogo.find((o) => o.opcion_id === +id);
@@ -99,11 +103,23 @@ VIEWS['ventas'] = async (v, q) => {
           <label class="field"><span>Nombre del cliente</span><input id="cliente" list="dl-clientes" placeholder="Ej. Tienda Lupita" autocomplete="off"><datalist id="dl-clientes"></datalist></label>
           <label class="field"><span>Teléfono <i class="muted">(opcional)</i></span><input id="telefono" type="tel" inputmode="tel" placeholder="10 dígitos"></label>
         </div>
-        <div class="tiles tiles-2" id="metodos" style="margin-top:12px">
+        <div class="tiles tiles-3" id="metodos" style="margin-top:12px">
           <button type="button" class="tile ${metodo === 'efectivo' ? 'on' : ''}" data-m="efectivo" ${tipo === 'paqueteria' ? 'disabled' : ''}><span class="tile-e">💵</span><span class="tile-t">Efectivo</span><span class="tile-s">${tipo === 'paqueteria' ? 'No aplica en paquetería' : 'Se cobra en mano'}</span></button>
           <button type="button" class="tile ${metodo === 'transferencia' ? 'on' : ''}" data-m="transferencia"><span class="tile-e">🏦</span><span class="tile-t">Transferencia</span><span class="tile-s">Se verifica en el banco</span></button>
+          <button type="button" class="tile ${metodo === 'mixto' ? 'on' : ''}" data-m="mixto" ${tipo === 'paqueteria' ? 'disabled' : ''}><span class="tile-e">🔀</span><span class="tile-t">Mixto</span><span class="tile-s">${tipo === 'paqueteria' ? 'No aplica en paquetería' : 'Parte y parte'}</span></button>
         </div>
-        <label class="field ${metodo === 'transferencia' ? '' : 'hidden'}" id="refbox" style="margin-top:12px"><span>Referencia o clave de rastreo <i class="muted">(opcional)</i></span><input id="referencia" placeholder="Ej. últimos 4 dígitos"></label>
+        <div class="row ${metodo === 'mixto' ? '' : 'hidden'}" id="mixbox" style="margin-top:12px">
+          <label class="field"><span>💵 ¿Cuánto pagó en efectivo?</span><input id="efmix" type="number" min="1" step="any" inputmode="decimal" placeholder="Ej. 200" value="${esc(efMix)}"></label>
+          <div class="field"><span>🏦 El resto por transferencia</span><div class="mix-resto" id="mixresto">—</div></div>
+        </div>
+        <div class="${hayTr() ? '' : 'hidden'}" id="trbox">
+          <label class="field" style="margin-top:12px"><span>Referencia o clave de rastreo <i class="muted">(opcional)</i></span><input id="referencia" placeholder="Ej. últimos 4 dígitos"></label>
+          <details class="ajuste" ${+extra ? 'open' : ''}><summary>🎁 ¿Transfirió de más? Propina o servicio extra</summary>
+            <label class="field" style="margin-top:10px"><span>Extra por transferencia <i class="muted">(es ${admin ? `de ${esc(vend().nombre)}` : 'tuyo'}; no cuenta como venta)</i></span>
+              <input id="extra" type="number" min="0" step="any" inputmode="decimal" placeholder="Ej. 100" value="${esc(extra)}" style="max-width:200px"></label>
+            <div class="small muted">Ej. la venta es de $350 y el cliente transfiere $450: escribe $100. ${admin ? 'Se le paga al vendedor' : 'Te lo pagan'} del banco o ${admin ? 'lo descuenta' : 'lo descuentas'} del efectivo.</div>
+          </details>
+        </div>
         ${admin ? `<details class="ajuste" ${ajuste.valor !== '' ? 'open' : ''}><summary>Descuento o precio especial <span class="badge b-brand">solo admin</span></summary>
           <div class="inline" style="margin-top:10px"><div class="seg seg-sm" id="ajm"><button type="button" data-a="desc" class="${ajuste.modo === 'desc' ? 'on' : ''}">Descuento $</button><button type="button" data-a="final" class="${ajuste.modo === 'final' ? 'on' : ''}">Precio final $</button></div>
           <input id="ajv" type="number" min="0" step="any" inputmode="decimal" value="${esc(ajuste.valor)}" style="max-width:160px" placeholder="0"></div></details>` : ''}
@@ -116,7 +132,14 @@ VIEWS['ventas'] = async (v, q) => {
 
     keep.forEach(([id, val]) => { const el = $('#' + id, box); if (el && val) el.value = val; });
     $$('#tipos .tile', box).forEach((b) => b.addEventListener('click', () => { tipo = b.dataset.t; pintarNueva(); }));
-    $$('#metodos .tile', box).forEach((b) => b.addEventListener('click', () => { metodo = b.dataset.m; $$('#metodos .tile', box).forEach((x) => x.classList.toggle('on', x === b)); $('#refbox', box).classList.toggle('hidden', metodo !== 'transferencia'); totales(); }));
+    $$('#metodos .tile', box).forEach((b) => b.addEventListener('click', () => {
+      metodo = b.dataset.m; $$('#metodos .tile', box).forEach((x) => x.classList.toggle('on', x === b));
+      $('#mixbox', box).classList.toggle('hidden', metodo !== 'mixto'); $('#trbox', box).classList.toggle('hidden', !hayTr());
+      if (metodo === 'mixto') $('#efmix', box).focus();
+      totales();
+    }));
+    $('#efmix', box).addEventListener('input', (e) => { efMix = e.target.value; totales(); });
+    $('#extra', box).addEventListener('input', (e) => { extra = e.target.value; totales(); });
     bindArrastre($('#prods', box));
     $('#vaciar', box)?.addEventListener('click', () => { cart = []; ajuste.valor = ''; pintarNueva(); });
     $$('#ajm button', box).forEach((b) => b.addEventListener('click', () => { ajuste.modo = b.dataset.a; $$('#ajm button', box).forEach((x) => x.classList.toggle('on', x === b)); totales(); }));
@@ -292,12 +315,18 @@ VIEWS['ventas'] = async (v, q) => {
     if (env) partes.push(`envío +${money0(env)}`);
     if (d) partes.push(`descuento −${money0(d)}`);
     const quien = admin ? esc(vend().nombre) : 'tú';
-    const linea2 = !cart.length ? '' : !metodo ? `Comisión ${admin ? `de ${quien}` : ''} ${money0(com)}${paq ? ` · paquetería ${money0(paq)}` : ''} · elige cómo paga` : metodo === 'efectivo'
-      ? (admin ? `Comisión ${quien} ${money0(com)} (se la queda del efectivo) · <b>trae ${money0(t - com)}</b> hasta depositarlo`
-               : `Tu comisión ${money0(com)} te la quedas · <b>traes ${money0(t - com)}</b> hasta depositarlo`)
-      : `<b>Entran ${money0(t)} al banco</b> · ${admin ? `se le deben ${money0(com)} de comisión a ${quien}` : `se te deben ${money0(com)} de comisión (puedes tomarla de tu efectivo)`}${paq ? ` y ${money0(paq)} a la paquetería` : ''}`;
+    const ef = efectivoN(t), ex = extraN(), tr = t - ef, ret = Math.min(com, ef), debe = com - ret + ex;
+    const mr = $('#mixresto', v);
+    if (mr) mr.innerHTML = metodo !== 'mixto' ? '—' : ef > 0 && ef < t ? `<b>${money0(tr)}</b>` : `<span style="color:var(--warn)">el efectivo debe ser menor a ${money0(t)}</span>`;
+    const partesPago = [];
+    if (ef > 0) partesPago.push(admin ? `💵 ${quien} se queda ${money0(ret)} de comisión y <b>trae ${money0(ef - ret)}</b>` : `💵 te quedas ${money0(ret)} de comisión y <b>traes ${money0(ef - ret)}</b>`);
+    if (tr + ex > 0) partesPago.push(`🏦 <b>entran ${money0(tr + ex)} al banco</b>${ex ? ` (${money0(ex)} de extra)` : ''}`);
+    const deQue = com - ret > 0 && ex ? ' (comisión + extra)' : ex ? ' (el extra)' : ' de comisión';
+    if (debe > 0 && hayTr()) partesPago.push(admin ? `se le deben ${money0(debe)}${deQue} a ${quien}` : `se te deben ${money0(debe)}${deQue}`);
+    if (paq && hayTr()) partesPago.push(`${money0(paq)} a la paquetería`);
+    const linea2 = !cart.length ? '' : !metodo ? `Comisión ${admin ? `de ${quien}` : ''} ${money0(com)}${paq ? ` · paquetería ${money0(paq)}` : ''} · elige cómo paga` : partesPago.join(' · ');
     $('#vdesg', v).innerHTML = partes.join(' · ') + (linea2 ? `<br>${linea2}` : '');
-    $('#vguardar', v).textContent = cart.length ? `Cobrar ${money0(t)}` : 'Cobrar';
+    $('#vguardar', v).textContent = cart.length ? `Cobrar ${money0(t)}${extraN() ? ` +${money0(extraN())}` : ''}` : 'Cobrar';
   }
 
   async function cobrar(e) {
@@ -305,11 +334,13 @@ VIEWS['ventas'] = async (v, q) => {
     const cliente = $('#cliente', v).value.trim();
     if (!cart.length) return toast('Agrega al menos un producto', true);
     if (!cliente) { $('#cliente', v).focus(); return toast('Escribe el nombre del cliente', true); }
-    if (!metodo) return toast('Elige efectivo o transferencia', true);
+    if (!metodo) return toast('Elige efectivo, transferencia o mixto', true);
     const t = total();
+    const ef = efectivoN(t), ex = extraN();
+    if (metodo === 'mixto' && !(ef > 0 && ef < t)) { $('#efmix', v).focus(); return toast(`Escribe cuánto pagó en efectivo (menos de ${money0(t)})`, true); }
     let verificarYa = false;
-    if (metodo === 'transferencia') {
-      const r = await alertaTransferencia(t, cliente);
+    if (hayTr()) {
+      const r = await alertaTransferencia(t - ef + ex, cliente, ex);
       if (!r) return;
       verificarYa = r === 'verificada';
     }
@@ -319,14 +350,15 @@ VIEWS['ventas'] = async (v, q) => {
         p_cliente: cliente, p_metodo: metodo, p_vendedor: admin ? vendId : null, p_tipo: tipo,
         p_items: cart.map((l) => ({ opcion_id: l.opcion_id, cantidad: l.cantidad, promo: l.promo })),
         p_nota: $('#nota', v).value || null, p_telefono: $('#telefono', v).value || null,
-        p_referencia: metodo === 'transferencia' ? $('#referencia', v).value || null : null,
+        p_referencia: hayTr() ? $('#referencia', v).value || null : null,
         p_descuento: descuento(),
+        p_efectivo: metodo === 'mixto' ? ef : null, p_extra: ex,
       });
     });
     if (!r) return; // no se registró: el carrito sigue igual para intentar de nuevo
     // la venta ya existe: se limpia el carrito pase lo que pase con la verificación
-    const eraTransf = metodo === 'transferencia';
-    cart = []; metodo = ''; ajuste.valor = ''; tipo = 'local'; limpiarForm = true;
+    const eraTransf = hayTr();
+    cart = []; metodo = ''; ajuste.valor = ''; tipo = 'local'; limpiarForm = true; efMix = ''; extra = '';
     let verifOk = !verificarYa;
     if (verificarYa) {
       try { await API.rpc('verificar_transferencia', { p_venta: r.venta_id, p_verificada: true }); verifOk = true; }
@@ -338,11 +370,12 @@ VIEWS['ventas'] = async (v, q) => {
     await cargarTodo();
   }
 
-  function alertaTransferencia(monto, cliente) {
+  function alertaTransferencia(monto, cliente, ex = 0) {
     return new Promise((resolve) => {
       modal(`<div class="seg-alert"><div class="seg-ico">🔒</div>
         <h2>Verifica la transferencia</h2>
         <p>Abre tu <b>banca móvil</b> y confirma que llegó la transferencia de <b>${money(monto)}</b> de <b>${esc(cliente)}</b>.</p>
+        ${ex ? `<p class="small">Incluye <b>${money(ex)}</b> de extra (propina / servicio) para ${admin ? esc(vend().nombre) : 'ti'}.</p>` : ''}
         <ul class="small muted"><li>No te fíes de capturas de pantalla: revisa el movimiento en tu banco.</li><li>Confirma el monto exacto y el nombre de quien envía.</li>
         ${admin ? '' : '<li>El administrador la marcará como verificada al revisarla.</li>'}</ul>
         <label class="chk big-chk"><input type="checkbox" id="vchk"> ${admin ? 'Ya la vi reflejada en el banco' : 'Revisé el comprobante con el cliente'}</label></div>
@@ -375,7 +408,8 @@ VIEWS['ventas'] = async (v, q) => {
       <div style="margin:14px 0 4px">${barra2(p.efectivo, p.transferencia)}</div>
       <div class="mini-kpis">
         <div class="mk"><span class="mk-l">${admin ? 'Trae en efectivo' : 'Efectivo por entregar'}</span><b>${money0(p.en_poder)}</b><span class="mk-s">ya sin su comisión</span></div>
-        <div class="mk ${+p.comision_pendiente ? 'warn' : ''}"><span class="mk-l">Comisión ganada</span><b>${money0(p.comision)}</b><span class="mk-s">${+p.comision_pendiente ? `le debemos ${money0(p.comision_pendiente)}` : 'pagada ✓'}</span></div>
+        <div class="mk ${+p.comision_pendiente ? 'warn' : ''}"><span class="mk-l">Comisión ganada</span><b>${money0(p.comision)}</b><span class="mk-s">${+p.comision_pendiente ? `le debemos ${money0(p.comision_pendiente)}${+p.extra ? ' (con extras)' : ''}` : 'pagada ✓'}</span></div>
+        ${+p.extra ? `<div class="mk"><span class="mk-l">🎁 Extras (propinas)</span><b>${money0(p.extra)}</b><span class="mk-s">${p.extra_num} ${p.extra_num == 1 ? 'venta' : 'ventas'} · son suyos</span></div>` : ''}
         <div class="mk ${+p.transf_pendiente ? 'warn' : ''}"><span class="mk-l">Transf. por verificar</span><b>${money0(p.transf_pendiente)}</b><span class="mk-s">${+p.transf_pendiente ? 'revisar en el banco' : 'todo en orden'}</span></div>
         <div class="mk"><span class="mk-l">Le quedan</span><b>${fnum(p.inventario)} pz</b><span class="mk-s">valen ${money0(p.inventario_valor)}</span></div>
       </div>
@@ -383,7 +417,7 @@ VIEWS['ventas'] = async (v, q) => {
       ${ue ? `<div class="ue"><div class="small"><b>Última entrega</b> · ${fecha(ue.fecha)}</div>
         <div class="bar bar-lg"><i style="width:${pctUe}%"></i></div>
         <div class="small muted">Vendió ${fnum(ue.vendidas)} de ${fnum(ue.piezas)} piezas entregadas</div></div>` : ''}
-      ${admin ? `<div class="inline" style="margin-top:14px"><a class="btn btn-sm" href="#/entregar?v=${vendId}">+ Entregarle producto</a>${+p.en_poder > 0 ? `<a class="btn btn-sm" href="#/caja?op=deposito&v=${vendId}">Registrar depósito</a>` : ''}${+p.comision_pendiente ? `<a class="btn btn-sm" href="#/caja?op=pago_comision&v=${vendId}">Pagar comisión</a>` : ''}</div>` : ''}
+      ${admin ? `<div class="inline" style="margin-top:14px"><a class="btn btn-sm" href="#/entregar?v=${vendId}">+ Entregarle producto</a>${+p.en_poder > 0 ? `<a class="btn btn-sm" href="#/caja?op=deposito&v=${vendId}">Registrar depósito</a>` : ''}${+p.comision_pendiente ? `<a class="btn btn-sm" href="#/caja?op=pago_comision&v=${vendId}">Pagar comisión${+p.extra ? ' y extras' : ''}</a>` : ''}</div>` : ''}
     </div>`;
     animarNumeros(box);
   }
@@ -399,22 +433,23 @@ VIEWS['ventas'] = async (v, q) => {
       <div class="inline">${admin ? `<div class="seg seg-sm" id="ptodos"><button type="button" data-t="0" class="${verTodos ? '' : 'on'}">De ${esc(vend().nombre)}</button><button type="button" data-t="1" class="${verTodos ? 'on' : ''}">Todos</button></div>
         <label class="chk small"><input type="checkbox" id="ppend" ${soloPend ? 'checked' : ''}> Solo por verificar</label>` : ''}
         <input id="pbus" type="search" placeholder="Buscar cliente o folio" style="width:190px;min-height:34px;padding:6px 10px"></div></div>
-      ${ventas.length ? `<div class="ped-tot small muted">${t.num} pedidos · <b>${money(t.total)}</b> · efectivo ${money0(t.efectivo)} · transferencia ${money0(t.transferencia)}${t.pendiente ? ` · <span style="color:var(--warn)">${money0(t.pendiente)} por verificar</span>` : ''}</div>
-      <div class="tbl-wrap"><table class="tbl ped"><thead><tr><th>Hora</th><th>Folio</th><th>Cliente</th><th>Producto</th><th class="num">Pz</th><th class="num">Total</th><th>Pago</th><th>Entrega</th>${verTodos || !admin ? '' : ''}${admin ? '<th></th>' : ''}</tr></thead><tbody>
+      ${ventas.length ? `<div class="ped-tot small muted">${t.num} pedidos · <b>${money(t.total)}</b> · efectivo ${money0(t.efectivo)} · transferencia ${money0(t.transferencia)}${t.extra ? ` · <span class="badge b-extra">🎁 ${money0(t.extra)} de extras en ${t.extraNum} ${t.extraNum === 1 ? 'venta' : 'ventas'}</span>` : ''}${t.pendiente ? ` · <span style="color:var(--warn)">${money0(t.pendiente)} por verificar</span>` : ''}</div>
+      <div class="tbl-wrap"><table class="tbl ped"><thead><tr><th>Hora</th><th>Folio</th><th>Cliente</th><th>Producto</th><th class="num">Pz</th><th class="num">Total</th><th>Pago</th><th>Entrega</th><th></th></tr></thead><tbody>
       ${ventas.map((x) => {
         const pz = (x.items || []).reduce((s, i) => s + i.piezas, 0);
-        const esTr = x.metodo === 'transferencia';
-        return `<tr class="${x.anulada ? 'anul' : ''}" data-busca="${esc((x.cliente + ' ' + folio(x.id) + ' ' + (x.telefono || '')).toLowerCase())}">
+        const esTr = pagoTr(x) > 0;
+        return `<tr class="${x.anulada ? 'anul' : ''}${+x.extra && !x.anulada ? ' con-extra' : ''}" data-busca="${esc((x.cliente + ' ' + folio(x.id) + ' ' + (x.telefono || '')).toLowerCase())}">
           <td class="small">${r.hoy ? hora(x.fecha) : fecha(x.fecha)}</td>
           <td><button type="button" class="link" data-ver="${x.id}">${folio(x.id)}</button></td>
           <td><b>${esc(x.cliente)}</b>${x.telefono ? `<div class="small muted">${esc(x.telefono)}</div>` : ''}${verTodos && admin ? `<div class="small muted">${esc(x.vendedor)}</div>` : ''}</td>
           <td class="small">${(x.items || []).map((i) => `${i.cantidad}× ${esc(i.descripcion)}`).join('<br>')}</td>
           <td class="num">${pz}</td>
           <td class="num"><b>${money0(x.total)}</b>${+x.descuento ? `<div class="small muted">−${money0(x.descuento)}</div>` : ''}</td>
-          <td>${x.anulada ? '<span class="badge b-err">Cancelada</span>' : `<span class="badge ${esTr ? 'b-info' : 'b-ok'}">${esTr ? 'Transf.' : 'Efectivo'}</span>${esTr ? (x.verificada ? ' <span class="badge b-ok">✓</span>' : ' <span class="badge b-warn">por verificar</span>') : ''}`}</td>
+          <td>${pagoBadges(x, false)}${x.metodo === 'mixto' && !x.anulada ? `<div class="small muted">💵 ${money0(x.pago_efectivo)} · 🏦 ${money0(x.pago_transfer)}</div>` : ''}</td>
           <td><span class="badge ${x.tipo === 'paqueteria' ? 'b-brand' : ''}">${TIPOS_VENTA[x.tipo]}</span></td>
-          ${admin ? `<td class="actions">${!x.anulada && esTr ? `<label class="chk small" title="Verificada en el banco"><input type="checkbox" data-verif="${x.id}" ${x.verificada ? 'checked' : ''}> ok</label>` : ''}
-            ${!x.anulada ? `<button class="btn btn-sm btn-ghost" data-anular="${x.id}" title="Cancelar venta">✕</button>` : ''}</td>` : ''}
+          <td class="actions">${admin && !x.anulada && esTr ? `<label class="chk small" title="Verificada en el banco (${money0(pagoTr(x))})"><input type="checkbox" data-verif="${x.id}" ${x.verificada ? 'checked' : ''}> ok</label>` : ''}
+            ${puedeCambiarPago(x, admin) ? `<button class="btn btn-sm btn-ghost" data-cpago="${x.id}" title="Cambiar cómo pagó">💱</button>` : ''}
+            ${admin && !x.anulada ? `<button class="btn btn-sm btn-ghost" data-anular="${x.id}" title="Cancelar venta">✕</button>` : ''}</td>
         </tr>`;
       }).join('')}</tbody></table></div>` : `<div class="empty">${soloPend ? 'No hay transferencias por verificar 🎉' : 'Aún no hay pedidos en este periodo'}</div>`}`;
     $$('#ptodos button', box).forEach((b) => b.addEventListener('click', () => { verTodos = b.dataset.t === '1'; pintarPedidos(leer()); }));
@@ -425,9 +460,11 @@ VIEWS['ventas'] = async (v, q) => {
       modal(`<h2>Pedido ${folio(x.id)}</h2>${ventaHTML(x, admin)}`, true);
       bindVerificar(dlg, () => { dlg.close(); cargarTodo(); });
       bindAnular(dlg, cargarTodo);
+      bindCambiarPago(dlg, ventas, admin, cargarTodo);
     }));
     bindVerificar(box, cargarTodo);
     bindAnular(box, cargarTodo);
+    bindCambiarPago(box, ventas, admin, cargarTodo);
   }
 
   /* ---------- desempeño (admin) ---------- */
@@ -444,6 +481,8 @@ VIEWS['ventas'] = async (v, q) => {
         <div class="cmp-r"><span>Trae efectivo</span><b>${money0(p.en_poder)}</b></div>
         <div class="cmp-r"><span>Transf. por verificar</span><b>${money0(p.transf_pendiente)}</b></div>
         <div class="cmp-r"><span>Comisión</span><b>${money0(p.comision)}</b></div>
+        <div class="cmp-r"><span>🎁 Extras</span><b>${+p.extra ? `${money0(p.extra)} <span class="muted small">(${p.extra_num})</span>` : '—'}</b></div>
+        ${+p.comision_pendiente ? `<div class="cmp-r"><span>Le debemos</span><b style="color:var(--warn)">${money0(p.comision_pendiente)}</b></div>` : ''}
         <div class="cmp-r"><span>Top</span><b>${p.top ? esc(p.top.descripcion) : '—'}</b></div>
         <div class="cmp-r"><span>Le quedan</span><b>${fnum(p.inventario)} pz</b></div>
       </div>`).join('')}</div></div>`;
@@ -481,7 +520,7 @@ VIEWS['ventas'] = async (v, q) => {
   $$('#avas .ava-pick', v).forEach((b) => b.addEventListener('click', () => {
     if (b.dataset.v === vendId) return;
     vendId = b.dataset.v; store.set('ventas.vend', vendId);
-    cart = []; ajuste.valor = ''; tipo = 'local'; metodo = '';
+    cart = []; ajuste.valor = ''; tipo = 'local'; metodo = ''; efMix = ''; extra = '';
     $$('#avas .ava-pick', v).forEach((x) => x.classList.toggle('on', x === b));
     cargarTodo();
   }));
@@ -511,12 +550,12 @@ VIEWS['inicio'] = async (v) => {
     ${perfil.dia_promo ? '<div class="promo-banner"><span class="promo-tag">3×2</span> Hoy aplica la promoción en piezas de 14 g de COF-R, COF-NI y COF-F.</div>' : ''}
     <div class="kpis">
       ${kpi('Vendí hoy', cuenta(t.total), `${t.num} venta${t.num == 1 ? '' : 's'} · ${fnum(t.piezas)} pz`, 'hl')}
-      ${kpi('Mi comisión', cuenta(t.comision), +p.comision_pendiente ? `me deben ${money0(p.comision_pendiente)} de transferencias` : `${money0(perfil.comision_venta)} por venta · todo pagado ✓`, +p.comision_pendiente ? 'warn' : '')}
+      ${kpi('Mi comisión', cuenta(t.comision), +p.comision_pendiente ? `me deben ${money0(p.comision_pendiente)}${t.extra ? ' (con extras)' : ' de transferencias'}` : `${money0(perfil.comision_venta)} por venta · todo pagado ✓`, +p.comision_pendiente ? 'warn' : '')}
       ${kpi('Efectivo que traigo', cuenta(p.en_poder || 0), 'ya sin mi comisión · hasta depositarlo al banco')}
       ${kpi('Transferencias', cuenta(t.transferencia), t.pendiente ? `${money0(t.pendiente)} por verificar` : 'todo verificado')}
     </div>
-    ${+p.comision_pendiente ? `<div class="card pp-vend"><div><b>🎁 Te debemos ${money0(p.comision_pendiente)} de comisiones</b>
-      <div class="small muted">Son de ventas por transferencia (ese dinero cayó al banco). Puedes tomarlas del efectivo que traes${+p.en_poder > 0 ? ` (traes ${money0(p.en_poder)})` : ''}, o te las pagan del banco.</div></div>
+    ${+p.comision_pendiente ? `<div class="card pp-vend"><div><b>🎁 Te debemos ${money0(p.comision_pendiente)} de comisiones y extras</b>
+      <div class="small muted">Son comisiones de ventas por transferencia y extras (propinas) que cayeron al banco. Puedes tomarlas del efectivo que traes${+p.en_poder > 0 ? ` (traes ${money0(p.en_poder)})` : ''}, o te las pagan del banco.</div></div>
       ${+p.en_poder > 0 ? `<button class="btn btn-primary" id="tomar">Tomar ${money0(Math.min(+p.comision_pendiente, +p.en_poder))} de mi efectivo</button>` : ''}</div>` : ''}
     ${sols.length ? `<div class="alert alert-warn">Tienes ${sols.length} ${sols.length === 1 ? 'solicitud pendiente' : 'solicitudes pendientes'} con producción · <a href="#/pedir">ver</a></div>` : ''}
     <div id="dash"></div>
@@ -524,12 +563,13 @@ VIEWS['inicio'] = async (v) => {
       ${tablaInventario(inv)}<div style="margin-top:10px"><a class="btn btn-sm" href="#/pedir">Pedir más</a></div></details>
     <div class="card"><div class="card-head"><h2>Mis ventas de hoy</h2></div>
       ${ventas.length ? ventas.map((x) => ventaHTML(x, false)).join('') : '<div class="empty">Aún no hay ventas hoy. ¡A vender! ☕</div>'}</div>`;
+  bindCambiarPago(v, ventas, false, route);
   animarNumeros(v);
   tableroVendedor($('#dash', v), { vendId: perfil.id, r: rh, p: { ...p, nombre: perfil.nombre, usuario: perfil.usuario }, inv, admin: false, recargar: route }).catch((e) => console.error(e));
   $('#tomar', v)?.addEventListener('click', async (e) => {
     const btn = e.currentTarget;
     const m = Math.min(+p.comision_pendiente, +p.en_poder);
-    if (!(await confirmar('Tomar mi comisión', `Tomas ${money0(m)} del efectivo que traes como pago de tus comisiones por transferencia. Ya no se te deberán.`, 'Tomar'))) return;
+    if (!(await confirmar('Tomar mi comisión', `Tomas ${money0(m)} del efectivo que traes como pago de tus comisiones y extras. Ya no se te deberán.`, 'Tomar'))) return;
     await run(btn, async () => { await API.rpc('tomar_comision', { p_monto: m }); FX.caja(); toast('Listo, comisión cobrada'); route(); });
   });
 };
@@ -584,7 +624,7 @@ async function tableroVendedor(box, { vendId, r, p, inv, admin, recargar, vigent
   const per = r.hoy ? 'hoy' : r.etiqueta.toLowerCase();
   const tr = d.transferencias, dep = d.depositos;
   const trPend = tr.filter((x) => !x.verificada);
-  const trTot = tr.reduce((s, x) => s + +x.total, 0);
+  const trTot = tr.reduce((s, x) => s + (+x.pago_transfer || 0) + (+x.extra || 0), 0);
   const depTot = dep.reduce((s, x) => s + +x.monto, 0);
   const ticket = p.num ? p.total / p.num : 0;
   const stock = inv.filter((i) => i.piezas > 0);
@@ -625,7 +665,7 @@ async function tableroVendedor(box, { vendId, r, p, inv, admin, recargar, vigent
         ${tr.length ? `<div class="trl">${tr.map((x) => `<div class="tr-i ${x.verificada ? 'ok' : 'pend'}">
           <span class="foco ${x.verificada ? 'foco-ok' : 'foco-am'}" title="${x.verificada ? 'Verificada en el banco' : 'Por verificar'}"></span>
           <div><b>${esc(x.cliente)}</b><div class="small muted">${folio(x.id)} · ${r.hoy ? hora(x.fecha) : fecha(x.fecha)}${x.tipo === 'paqueteria' ? ' · 📦 paquetería' : ''}${x.referencia ? ` · ref ${esc(x.referencia)}` : ''}</div></div>
-          <b>${money0(x.total)}</b>
+          <b>${money0((+x.pago_transfer || 0) + (+x.extra || 0))}${x.metodo === 'mixto' ? ' <span class="badge b-brand">mixto</span>' : ''}${+x.extra ? ` <span class="badge b-extra">+${money0(x.extra)} extra</span>` : ''}</b>
           ${admin ? `<label class="sw" title="${x.verificada ? 'Verificada' : 'Marcar verificada'}"><input type="checkbox" data-verif="${x.id}" ${x.verificada ? 'checked' : ''}><i></i></label>` : `<span class="small ${x.verificada ? '' : 'warn-t'}">${x.verificada ? 'verificada' : 'por verificar'}</span>`}
         </div>`).join('')}</div>` : `<div class="empty">Sin transferencias ${esc(per)}</div>`}
       </div>
