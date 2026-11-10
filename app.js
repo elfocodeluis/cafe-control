@@ -520,6 +520,14 @@ async function boot() {
   route();
 }
 
+// Si en otra pestaña del mismo navegador se entra con otra cuenta, la sesión guardada cambia
+// y esta pestaña mandaría las ventas con la cuenta equivocada: se recarga para mostrar quién es.
+window.addEventListener('storage', async (e) => {
+  if (!ME || !e.key || !/auth-token|cafe_dev_token/.test(e.key)) return;
+  const id = await API.usuarioId().catch(() => null);
+  if (id !== ME.id) location.reload();
+});
+
 function renderLogin(error) {
   app.innerHTML = `<div class="login"><div class="login-fondo" aria-hidden="true"><i></i><i></i><i></i></div>
     <div class="login-card pop">

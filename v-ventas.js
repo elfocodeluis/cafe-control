@@ -28,9 +28,10 @@ VIEWS['ventas'] = async (v, q) => {
   let inv = [];
   let cart = []; // {opcion_id, promo, cantidad}
   let tipo = 'local', metodo = '', ajuste = { modo: 'desc', valor: '' };
-  let efMix = '', extra = ''; // pago mixto: cuánto en efectivo · extra (propina) por transferencia
+  let efMix = '', extra = '', extraAbierto = false; // pago mixto: cuánto en efectivo · extra (propina) por transferencia
   const hayTr = () => metodo === 'transferencia' || metodo === 'mixto';
   const extraN = () => (hayTr() ? Math.max(0, +extra || 0) : 0);
+  const extraSub = () => (extraN() ? `es ${admin ? `de ${esc(vend().nombre)}` : 'tuyo'} · no cuenta como venta` : 'Toca si el cliente te transfirió propina o servicio');
   const efectivoN = (t) => (metodo === 'efectivo' ? t : metodo === 'mixto' ? Math.max(0, +efMix || 0) : 0);
   const puedePaq = () => !!vend()?.envio_nacional;
   const envio = () => (tipo === 'paqueteria' ? +perfil.envio_cobro_paqueteria : tipo === 'local' ? +perfil.envio_cobro_local : 0);
@@ -77,7 +78,7 @@ VIEWS['ventas'] = async (v, q) => {
   let limpiarForm = false;
   function pintarNueva() {
     const box = $('#nueva', v);
-    const keep = limpiarForm ? [] : ['cliente', 'telefono', 'referencia', 'nota'].map((id) => [id, $('#' + id, v)?.value || '']);
+    const keep = limpiarForm ? [] : ['cliente', 'telefono', 'nota'].map((id) => [id, $('#' + id, v)?.value || '']);
     limpiarForm = false;
     if (tipo === 'paqueteria' && !puedePaq()) tipo = 'local';
     if (tipo === 'paqueteria') metodo = 'transferencia';
@@ -94,8 +95,8 @@ VIEWS['ventas'] = async (v, q) => {
               <span class="tile-e">${e}</span><span class="tile-t">${t}</span><span class="tile-s">${lock ? `${admin ? 'Actívalo en Usuarios' : 'No habilitado'}` : s}</span></button>`;
           }).join('')}
         </div></div></div>
-      <div class="paso"><div class="paso-n">2</div><div class="paso-b"><div class="paso-t">¿Qué se lleva? <span class="muted small" style="font-weight:400">${admin ? `stock de ${esc(vend().nombre)}` : 'tu stock'} · arrastra al carrito o toca</span></div>
-        <div class="stks" id="prods">${stockTiles() || '<div class="empty">Sin piezas para vender</div>'}</div>
+      <div class="paso"><div class="paso-n">2</div><div class="paso-b"><div class="paso-t">¿Qué se lleva? <span class="muted small" style="font-weight:400">${admin ? `stock de ${esc(vend().nombre)}` : 'tu stock'} · toca para agregar</span></div>
+        <div class="pk" id="prods">${stockTiles() || '<div class="empty">Sin piezas para vender</div>'}</div>
         <div id="carrito" class="cesta"></div>
       </div></div>
       <div class="paso"><div class="paso-n">3</div><div class="paso-b"><div class="paso-t">Cliente y pago</div>
@@ -113,12 +114,16 @@ VIEWS['ventas'] = async (v, q) => {
           <div class="field"><span>🏦 El resto por transferencia</span><div class="mix-resto" id="mixresto">—</div></div>
         </div>
         <div class="${hayTr() ? '' : 'hidden'}" id="trbox">
-          <label class="field" style="margin-top:12px"><span>Referencia o clave de rastreo <i class="muted">(opcional)</i></span><input id="referencia" placeholder="Ej. últimos 4 dígitos"></label>
-          <details class="ajuste" ${+extra ? 'open' : ''}><summary>🎁 ¿Transfirió de más? Propina o servicio extra</summary>
-            <label class="field" style="margin-top:10px"><span>Extra por transferencia <i class="muted">(es ${admin ? `de ${esc(vend().nombre)}` : 'tuyo'}; no cuenta como venta)</i></span>
-              <input id="extra" type="number" min="0" step="any" inputmode="decimal" placeholder="Ej. 100" value="${esc(extra)}" style="max-width:200px"></label>
-            <div class="small muted">Ej. la venta es de $350 y el cliente transfiere $450: escribe $100. ${admin ? 'Se le paga al vendedor' : 'Te lo pagan'} del banco o ${admin ? 'lo descuenta' : 'lo descuentas'} del efectivo.</div>
-          </details>
+          <button type="button" class="extra-btn ${extraN() ? 'on' : ''}" id="extrabtn" aria-expanded="${extraAbierto || !!extraN()}">
+            <span class="extra-e">🎁</span>
+            <span class="extra-t"><b>Servicio extra transferido</b><small id="extrasub">${extraSub()}</small></span>
+            <span class="extra-v" id="extraval">${extraN() ? '+' + money0(extraN()) : '+'}</span>
+          </button>
+          <div class="extra-box ${extraAbierto || extraN() ? '' : 'hidden'}" id="extrabox">
+            <label class="field"><span>¿Cuánto te transfirieron de servicio extra?</span>
+              <input id="extra" type="number" min="0" step="any" inputmode="decimal" placeholder="Ej. 100" value="${esc(extra)}"></label>
+            <div class="extra-chips">${[50, 100, 150, 200].map((n) => `<button type="button" class="chip" data-ex="${n}">${money0(n)}</button>`).join('')}<button type="button" class="chip" data-ex="0">Quitar</button></div>
+          </div>
         </div>
         ${admin ? `<details class="ajuste" ${ajuste.valor !== '' ? 'open' : ''}><summary>Descuento o precio especial <span class="badge b-brand">solo admin</span></summary>
           <div class="inline" style="margin-top:10px"><div class="seg seg-sm" id="ajm"><button type="button" data-a="desc" class="${ajuste.modo === 'desc' ? 'on' : ''}">Descuento $</button><button type="button" data-a="final" class="${ajuste.modo === 'final' ? 'on' : ''}">Precio final $</button></div>
@@ -139,7 +144,23 @@ VIEWS['ventas'] = async (v, q) => {
       totales();
     }));
     $('#efmix', box).addEventListener('input', (e) => { efMix = e.target.value; totales(); });
-    $('#extra', box).addEventListener('input', (e) => { extra = e.target.value; totales(); });
+    const pintaExtra = () => {
+      $('#extrabtn', box).classList.toggle('on', !!extraN());
+      $('#extraval', box).textContent = extraN() ? '+' + money0(extraN()) : '+';
+      $('#extrasub', box).innerHTML = extraSub();
+      totales();
+    };
+    $('#extrabtn', box).addEventListener('click', () => {
+      extraAbierto = $('#extrabox', box).classList.toggle('hidden') === false;
+      $('#extrabtn', box).setAttribute('aria-expanded', extraAbierto);
+      if (extraAbierto) $('#extra', box).focus();
+    });
+    $('#extra', box).addEventListener('input', (e) => { extra = e.target.value; pintaExtra(); });
+    $$('[data-ex]', box).forEach((b) => b.addEventListener('click', () => {
+      extra = +b.dataset.ex ? b.dataset.ex : ''; $('#extra', box).value = extra; FX.tap();
+      if (!extra) { extraAbierto = false; $('#extrabox', box).classList.add('hidden'); }
+      pintaExtra();
+    }));
     bindArrastre($('#prods', box));
     $('#vaciar', box)?.addEventListener('click', () => { cart = []; ajuste.valor = ''; pintarNueva(); });
     $$('#ajm button', box).forEach((b) => b.addEventListener('click', () => { ajuste.modo = b.dataset.a; $$('#ajm button', box).forEach((x) => x.classList.toggle('on', x === b)); totales(); }));
@@ -165,27 +186,44 @@ VIEWS['ventas'] = async (v, q) => {
   const quedan = (presId) => invDe(presId) - usadas(presId);
   const necesita = (o, promo) => (promo ? 3 : o.piezas);
   const nomOp = (o) => (o.piezas > 1 ? o.opcion.replace('Paquete de ', 'Paq ') : o.presentacion);
+  // Productos agrupados: categoría → producto → presentaciones (botones grandes: gramos, precio, cuántas quedan)
+  function tileHTML(i) {
+    const ops = opsDe(i.presentacion_id);
+    const def = ops.find((o) => o.piezas === 1) || ops[0];
+    const tiene3x2 = def.promo_3x2 && def.piezas === 1;
+    const otras = ops.filter((o) => o !== def);
+    const q = quedan(i.presentacion_id);
+    const chips = [
+      ...otras.map((o) => `<button type="button" class="stk-c" data-op="${o.opcion_id}" title="Se lleva ${o.piezas} piezas"><b>${esc(nomOp(o))}</b><span>${o.piezas} pz · ${money0(o.precio)}</span></button>`),
+      tiene3x2 ? `<button type="button" class="stk-c promo" data-op="${def.opcion_id}" data-promo="1" ${promoHoy ? '' : 'data-off="1" disabled'} title="${promoHoy ? 'Se lleva 3 piezas y paga 2' : 'La promoción 3×2 solo aplica viernes, sábado y domingo'}"><b>3×2</b><span>${promoHoy ? `3 pz · ${money0(def.precio * 2)}` : 'vie–dom'}</span></button>` : '',
+    ].join('');
+    const tam = def.piezas > 1 ? nomOp(def) : i.presentacion === 'Pieza' ? '1 pieza' : i.presentacion;
+    return `<div class="stk-w">
+      <div class="stk stk-${i.categoria || 'cafe'} ${q < def.piezas ? 'agotado' : ''}" data-op="${def.opcion_id}" data-pres="${i.presentacion_id}" role="button" tabindex="0" aria-label="Agregar ${esc(i.producto)} ${esc(tam)}, ${money0(def.precio)}">
+        <span class="stk-g">${esc(tam)}</span>
+        <span class="stk-pr">${money0(def.precio)}</span>
+        <span class="stk-q"><b data-n>${q}</b> ${q === 1 ? 'queda' : 'quedan'}</span>
+      </div>
+      ${chips ? `<div class="stk-cs">${chips}</div>` : ''}
+    </div>`;
+  }
   function stockTiles() {
-    return inv.filter((i) => i.piezas > 0 && opsDe(i.presentacion_id).length).map((i) => {
-      const ops = opsDe(i.presentacion_id);
-      const def = ops.find((o) => o.piezas === 1) || ops[0];
-      const tiene3x2 = def.promo_3x2 && def.piezas === 1;
-      const extra = ops.filter((o) => o !== def);
-      const q = quedan(i.presentacion_id);
-      const chips = [
-        ...extra.map((o) => `<button type="button" class="stk-c" data-op="${o.opcion_id}" title="Se lleva ${o.piezas} piezas"><b>${esc(nomOp(o))}</b><span>${o.piezas} pz · ${money0(o.precio)}</span></button>`),
-        tiene3x2 ? `<button type="button" class="stk-c promo" data-op="${def.opcion_id}" data-promo="1" ${promoHoy ? '' : 'data-off="1" disabled'} title="${promoHoy ? 'Se lleva 3 piezas y paga 2' : 'La promoción 3×2 solo aplica viernes, sábado y domingo'}"><b>3×2</b><span>${promoHoy ? `3 pz · ${money0(def.precio * 2)}` : 'vie–dom'}</span></button>` : '',
-      ].join('');
-      return `<div class="stk-w">
-        ${chips ? `<div class="stk-cs">${chips}</div>` : ''}
-        <div class="stk stk-${i.categoria || 'cafe'} ${q < def.piezas ? 'agotado' : ''}" data-op="${def.opcion_id}" data-pres="${i.presentacion_id}" role="button" tabindex="0" aria-label="Agregar ${esc(def.descripcion)}">
-          <span class="stk-ico">${ICO_CAT[i.categoria] || '☕'}</span>
-          <span class="stk-n" data-n>${q}</span>
-          <span class="stk-sku">${esc(i.sku)}</span>
-          <span class="stk-p">${esc(i.presentacion)}${def.piezas > 1 ? ` · ${esc(nomOp(def))}` : i.presentacion === 'Pieza' ? '' : ' · pieza'}</span>
-          <span class="stk-pr">${money0(def.precio)}</span>
-        </div></div>`;
-    }).join('');
+    const items = inv.filter((i) => i.piezas > 0 && opsDe(i.presentacion_id).length);
+    if (!items.length) return '';
+    const cats = [];
+    items.forEach((i) => {
+      const ck = i.categoria || 'cafe';
+      let c = cats.find((x) => x.k === ck); if (!c) cats.push(c = { k: ck, prods: [] });
+      let pr = c.prods.find((x) => x.sku === i.sku); if (!pr) c.prods.push(pr = { sku: i.sku, nombre: i.producto || i.sku, items: [] });
+      pr.items.push(i);
+    });
+    return cats.map((c) => `<section class="pk-cat">
+      ${cats.length > 1 ? `<div class="pk-cat-h">${ICO_CAT[c.k] || '☕'} ${esc(CAT[c.k] || c.k)}</div>` : ''}
+      ${c.prods.map((pr) => `<div class="pk-prod stk-${c.k}">
+        <div class="pk-prod-h"><span class="pk-ico">${ICO_CAT[c.k] || '☕'}</span><b>${esc(pr.nombre)}</b></div>
+        <div class="pk-row">${pr.items.map(tileHTML).join('')}</div>
+      </div>`).join('')}
+    </section>`).join('');
   }
   function bindArrastre(zona) {
     if (!zona) return;
@@ -286,7 +324,7 @@ VIEWS['ventas'] = async (v, q) => {
     const pz = cart.reduce((s, l) => s + piezasLinea(l), 0);
     box.classList.toggle('llena', !!cart.length);
     box.innerHTML = `<div class="cesta-h"><span class="cesta-ico" id="cesta-ico">🛒${pz ? `<i>${pz}</i>` : ''}</span>
-        <div><b>Carrito</b><div class="small muted">${cart.length ? `${pz} ${pz === 1 ? 'pieza' : 'piezas'} · ${money0(productos())}` : 'Arrastra aquí los productos (o tócalos)'}</div></div></div>
+        <div><b>Carrito</b><div class="small muted">${cart.length ? `${pz} ${pz === 1 ? 'pieza' : 'piezas'} · ${money0(productos())}` : 'Toca un producto para agregarlo'}</div></div></div>
       ${cart.length ? `<div class="cart">${cart.map((l, i) => {
       const o = opDe(l.opcion_id);
       return `<div class="cart-l pop">
@@ -335,6 +373,11 @@ VIEWS['ventas'] = async (v, q) => {
     if (!cart.length) return toast('Agrega al menos un producto', true);
     if (!cliente) { $('#cliente', v).focus(); return toast('Escribe el nombre del cliente', true); }
     if (!metodo) return toast('Elige efectivo, transferencia o mixto', true);
+    // en este navegador se entró con otra cuenta en otra pestaña: no registrar a nombre equivocado
+    if (await API.usuarioId().catch(() => ME.id) !== ME.id) {
+      toast('En este navegador se abrió otra cuenta. Recargando…', true);
+      return setTimeout(() => location.reload(), 1500);
+    }
     const t = total();
     const ef = efectivoN(t), ex = extraN();
     if (metodo === 'mixto' && !(ef > 0 && ef < t)) { $('#efmix', v).focus(); return toast(`Escribe cuánto pagó en efectivo (menos de ${money0(t)})`, true); }
@@ -350,7 +393,6 @@ VIEWS['ventas'] = async (v, q) => {
         p_cliente: cliente, p_metodo: metodo, p_vendedor: admin ? vendId : null, p_tipo: tipo,
         p_items: cart.map((l) => ({ opcion_id: l.opcion_id, cantidad: l.cantidad, promo: l.promo })),
         p_nota: $('#nota', v).value || null, p_telefono: $('#telefono', v).value || null,
-        p_referencia: hayTr() ? $('#referencia', v).value || null : null,
         p_descuento: descuento(),
         p_efectivo: metodo === 'mixto' ? ef : null, p_extra: ex,
       });
@@ -358,7 +400,7 @@ VIEWS['ventas'] = async (v, q) => {
     if (!r) return; // no se registró: el carrito sigue igual para intentar de nuevo
     // la venta ya existe: se limpia el carrito pase lo que pase con la verificación
     const eraTransf = hayTr();
-    cart = []; metodo = ''; ajuste.valor = ''; tipo = 'local'; limpiarForm = true; efMix = ''; extra = '';
+    cart = []; metodo = ''; ajuste.valor = ''; tipo = 'local'; limpiarForm = true; efMix = ''; extra = ''; extraAbierto = false;
     let verifOk = !verificarYa;
     if (verificarYa) {
       try { await API.rpc('verificar_transferencia', { p_venta: r.venta_id, p_verificada: true }); verifOk = true; }
@@ -520,7 +562,7 @@ VIEWS['ventas'] = async (v, q) => {
   $$('#avas .ava-pick', v).forEach((b) => b.addEventListener('click', () => {
     if (b.dataset.v === vendId) return;
     vendId = b.dataset.v; store.set('ventas.vend', vendId);
-    cart = []; ajuste.valor = ''; tipo = 'local'; metodo = ''; efMix = ''; extra = '';
+    cart = []; ajuste.valor = ''; tipo = 'local'; metodo = ''; efMix = ''; extra = ''; extraAbierto = false;
     $$('#avas .ava-pick', v).forEach((x) => x.classList.toggle('on', x === b));
     cargarTodo();
   }));

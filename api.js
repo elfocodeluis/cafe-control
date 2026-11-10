@@ -39,6 +39,12 @@
       return store.get();
     },
 
+    // id del usuario de la sesión guardada en este navegador (puede cambiar desde otra pestaña)
+    async usuarioId() {
+      if (sb) { const { data } = await sb.auth.getSession(); return data.session?.user?.id || null; }
+      return store.get();
+    },
+
     async login(usuario, password) {
       if (sb) {
         const { error } = await sb.auth.signInWithPassword({ email: emailDe(usuario), password });
