@@ -131,16 +131,20 @@ VIEWS['usuarios'] = async (v) => {
         <option value="vendedor" ${p.rol === 'vendedor' ? 'selected' : ''}>Vendedor (solo vende)</option>
         <option value="produccion" ${p.rol === 'produccion' ? 'selected' : ''}>Producción (stock y entregas)</option>
         <option value="admin" ${p.rol === 'admin' ? 'selected' : ''}>Administrador (todo)</option></select></label>
+      <label class="chk small" data-vende ${p.rol === 'admin' ? '' : 'hidden'}><input type="checkbox" data-f="vende" ${p.vende ? 'checked' : ''}> 🛍️ También vende (aparece como vendedor)</label>
       <label class="chk small"><input type="checkbox" data-f="envio" ${p.envio_nacional ? 'checked' : ''}> 📦 Puede vender por paquetería</label>
       <label class="chk small"><input type="checkbox" data-f="activo" ${p.activo ? 'checked' : ''}> Activo (puede entrar)</label>
       <button class="btn btn-sm btn-primary" data-save>Guardar</button></div>`).join('')}</div>
     <div class="alert alert-info small">
       <b>Para crear un usuario nuevo:</b> en Supabase ve a <i>Authentication → Users → Add user → Create new user</i>.
       Correo: <code>nombre@${esc(C.dominioUsuarios)}</code>, su contraseña, y marca <i>Auto Confirm User</i>. Aparecerá aquí como vendedor y entra solo con <code>nombre</code> y su contraseña.</div>`;
+  $$('[data-f=rol]', v).forEach((sel) => sel.addEventListener('change', () => {
+    $('[data-vende]', sel.closest('[data-u]')).hidden = sel.value !== 'admin';
+  }));
   $$('[data-save]', v).forEach((b) => b.addEventListener('click', async () => {
     const c = b.closest('[data-u]');
     await run(b, async () => {
-      await API.rpc('actualizar_perfil', { p_id: c.dataset.u, p_nombre: $('[data-f=nombre]', c).value, p_rol: $('[data-f=rol]', c).value, p_activo: $('[data-f=activo]', c).checked, p_envio_nacional: $('[data-f=envio]', c).checked });
+      await API.rpc('actualizar_perfil', { p_id: c.dataset.u, p_nombre: $('[data-f=nombre]', c).value, p_rol: $('[data-f=rol]', c).value, p_activo: $('[data-f=activo]', c).checked, p_envio_nacional: $('[data-f=envio]', c).checked, p_vende: $('[data-f=rol]', c).value === 'admin' && $('[data-f=vende]', c).checked });
       FX.exito(); toast('Usuario guardado');
     });
   }));

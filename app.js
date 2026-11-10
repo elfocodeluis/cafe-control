@@ -232,7 +232,13 @@ const AVA_DEFS = `<svg class="ava-defs" width="0" height="0" aria-hidden="true" 
   <linearGradient id="gr-top" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6f8459"/><stop offset="1" stop-color="#3d4d30"/></linearGradient>
   <radialGradient id="gr-skin" cx="40%" cy="32%" r="78%"><stop offset="0" stop-color="#e8b88f"/><stop offset=".6" stop-color="#cd9367"/><stop offset="1" stop-color="#a66c45"/></radialGradient>
   <linearGradient id="gr-hair" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#c9c4be"/><stop offset=".5" stop-color="#8d8680"/><stop offset="1" stop-color="#57504b"/></linearGradient>
-  <radialGradient id="gr-bun" cx="40%" cy="25%" r="80%"><stop offset="0" stop-color="#f2be72"/><stop offset=".7" stop-color="#d98f3c"/><stop offset="1" stop-color="#b06d26"/></radialGradient>
+  <radialGradient id="gp-bg" cx="35%" cy="28%" r="90%"><stop offset="0" stop-color="#3a4a78"/><stop offset=".6" stop-color="#1c2445"/><stop offset="1" stop-color="#0c1026"/></radialGradient>
+  <radialGradient id="gp-skin" cx="40%" cy="32%" r="78%"><stop offset="0" stop-color="#f6d2b3"/><stop offset=".6" stop-color="#e2ad86"/><stop offset="1" stop-color="#c08560"/></radialGradient>
+  <linearGradient id="gp-robe" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8a5a36"/><stop offset="1" stop-color="#4a2c17"/></linearGradient>
+  <linearGradient id="gp-tunic" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f1e6cf"/><stop offset="1" stop-color="#cdbb98"/></linearGradient>
+  <linearGradient id="gp-hair" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8b5a33"/><stop offset="1" stop-color="#4d2e17"/></linearGradient>
+  <linearGradient id="gp-hilt" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#6f757c"/><stop offset=".45" stop-color="#e9edf1"/><stop offset="1" stop-color="#5d6268"/></linearGradient>
+  <radialGradient id="gr-bun"cx="40%" cy="25%" r="80%"><stop offset="0" stop-color="#f2be72"/><stop offset=".7" stop-color="#d98f3c"/><stop offset="1" stop-color="#b06d26"/></radialGradient>
 </defs></svg>`;
 
 const ojo = (x, y, r = 2.6) => `<g class="ava-ojo"><ellipse cx="${x}" cy="${y}" rx="${r + 1.7}" ry="${r + 2}" fill="#fff"/><g class="ava-pupil"><circle cx="${x}" cy="${y + 0.4}" r="${r}" fill="#2a1f18"/><circle cx="${x + 0.9}" cy="${y - 0.6}" r=".9" fill="#fff"/></g></g>`;
@@ -324,6 +330,53 @@ const AVATARES = {
         <path d="M24.5 92q3-3 7-3.4" stroke="#fff" stroke-opacity=".45" stroke-width="1.4" fill="none" stroke-linecap="round"/>
         <ellipse cx="32" cy="111.5" rx="8" ry="5.5" fill="url(#gr-skin)"/>
         <path d="M26 110q6 2 12 0" stroke="#9a6140" stroke-width="1" fill="none"/>
+      </g>
+    </g>
+    <circle cx="60" cy="60" r="60" fill="url(#g-vig)"/>
+    <circle class="ava-gloss" cx="60" cy="60" r="60" fill="url(#g-gloss)"/>
+  </svg>`,
+  // Padawan: aprendiz jedi con túnica, capucha caída, trencita de aprendiz y su sable de luz verde
+  padawan: `<svg viewBox="0 0 120 120" class="ava ava-p" aria-hidden="true">
+    <circle cx="60" cy="60" r="60" fill="url(#gp-bg)"/>
+    <g class="ava-estrellas" fill="#fff"><circle cx="18" cy="30" r=".9"/><circle cx="28" cy="16" r=".6"/><circle cx="96" cy="22" r=".8"/><circle cx="106" cy="44" r=".6"/><circle cx="14" cy="54" r=".6"/><circle cx="84" cy="10" r=".5"/><circle cx="40" cy="9" r=".5"/></g>
+    <g class="ava-rig">
+      <g class="ava-torso">
+        <path d="M14 124c4-25 23-33 46-33s42 8 46 33z" fill="url(#gp-robe)"/>
+        <path d="M30 98q30-14 60 0q-6 7-30 7t-30-7z" fill="#6b4226"/>
+        <path d="M46 93l14 31 14-31q-7 3-14 3t-14-3z" fill="url(#gp-tunic)"/>
+        <path d="M46 93l14 18M74 93l-14 18" stroke="#b9a37c" stroke-width="1.3" fill="none"/>
+        <rect x="47" y="116" width="26" height="5" rx="1.5" fill="#5a3a22"/>
+      </g>
+      <g class="ava-head"><g class="ava-hidle">
+        <ellipse cx="60" cy="92" rx="15" ry="4" fill="#000" opacity=".22"/>
+        <ellipse cx="35" cy="64" rx="5.5" ry="7.5" fill="url(#gp-skin)"/><ellipse cx="85" cy="64" rx="5.5" ry="7.5" fill="url(#gp-skin)"/>
+        <path d="M34 61q2 3 0 6M86 61q-2 3 0 6" stroke="#b77a55" stroke-width="1.2" fill="none" stroke-linecap="round"/>
+        <path d="M84 66q4 10 1 22" stroke="#6b4223" stroke-width="3.2" fill="none" stroke-linecap="round"/>
+        <path d="M83.6 70l2.6 1.4M84.6 75l2.6 1.4M85 80l2.6 1.4M84.6 85l2.6 1.2" stroke="#3e2410" stroke-width="1" stroke-linecap="round"/>
+        <ellipse cx="60" cy="64" rx="25" ry="28" fill="url(#gp-skin)"/>
+        <path d="M35 60q-3-31 25-32q28 1 25 32q-3-10-8-14q-3 4-9 4q-6-1-8-5q-3 5-10 5q-5 0-7-4q-5 4-8 14z" fill="url(#gp-hair)"/>
+        <path d="M45 36q8-5 18-5" stroke="#b07a4c" stroke-width="1.6" fill="none" stroke-linecap="round" opacity=".7"/>
+        <g class="ava-face">
+          <path class="ava-cejas" d="M43.5 55q6-3.5 12-.6M64.5 54.4q6-2.9 12 .6" stroke="#5a361b" stroke-width="2.8" fill="none" stroke-linecap="round"/>
+          <g class="ava-eyes">${ojo(50, 62.5)}${ojo(70, 62.5)}</g>
+          <path d="M59.5 65q-3 6 .5 8q2.6.4 4-1.2" stroke="#c48a64" stroke-width="2" fill="none" stroke-linecap="round"/>
+          <circle cx="44" cy="73" r="4.3" fill="#f0927a" opacity=".38"/><circle cx="76" cy="73" r="4.3" fill="#f0927a" opacity=".38"/>
+          <path class="ava-boca" d="M53.5 80q6.5 4.5 13 0" stroke="#a5523e" stroke-width="2.4" fill="none" stroke-linecap="round"/>
+          <path class="ava-risa" d="M53 79.5q7 1 14 0q-1 7-7 7t-7-7z" fill="#7a2f1d"/>
+        </g>
+      </g></g>
+      <g class="ava-sable">
+        <g class="ava-hoja">
+          <rect x="85.2" y="44" width="7.6" height="54" rx="3.8" fill="#5dff7a" opacity=".22"/>
+          <rect x="86.6" y="45" width="4.8" height="53" rx="2.4" fill="#57f46f" opacity=".75"/>
+          <rect x="87.8" y="46" width="2.4" height="52" rx="1.2" fill="#f2fff3"/>
+        </g>
+        <rect x="85.5" y="97" width="7" height="15" rx="1.4" fill="url(#gp-hilt)"/>
+        <path d="M85.5 101h7M85.5 104h7M85.5 107h7" stroke="#3b3f44" stroke-width="1"/>
+        <rect x="84.6" y="96" width="8.8" height="2.6" rx="1" fill="#2f3337"/>
+        <circle cx="91.2" cy="99.6" r=".9" fill="#e5463b"/>
+        <ellipse cx="89" cy="109" rx="7.5" ry="5.5" fill="url(#gp-skin)"/>
+        <path d="M83.5 107.5q5.5 2 11 0" stroke="#b77a55" stroke-width="1" fill="none"/>
       </g>
     </g>
     <circle cx="60" cy="60" r="60" fill="url(#g-vig)"/>

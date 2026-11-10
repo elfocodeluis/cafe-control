@@ -16,8 +16,9 @@ VIEWS['ventas'] = async (v, q) => {
   let clientes = [];
   API.rpc('clientes_lista').then((c) => { clientes = c; pintarClientes(); }).catch(() => {});
 
-  let vendId = admin ? (q.v || store.get('ventas.vend', '')) : ME.id;
-  if (!vendedores.some((x) => x.id === vendId)) vendId = vendedores[0].id;
+  // el admin que también vende arranca vendiendo como él mismo
+  let vendId = admin ? (q.v || store.get('ventas.vend', '') || ME.id) : ME.id;
+  if (!vendedores.some((x) => x.id === vendId)) vendId = (vendedores.find((x) => x.id === ME.id) || vendedores[0]).id;
   let verTodos = !!q.pend;
   let soloPend = !!q.pend;
   let promoHoy = perfil.dia_promo;

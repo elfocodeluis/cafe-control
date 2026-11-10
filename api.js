@@ -1,7 +1,7 @@
 // Capa de datos: habla con Supabase en producción o con el servidor local en pruebas.
 (function () {
   const C = window.APP_CONFIG;
-  const enPruebas = location.port === '8787' && !/[?&]nube\b/.test(location.search);
+  const enPruebas = /^(localhost|127\.0\.0\.1)$/.test(location.hostname) && !/[?&]nube\b/.test(location.search);
   const usarSupabase = !!(C.supabaseUrl && C.supabaseKey) && !enPruebas;
   let sb = null;
   if (usarSupabase) {
