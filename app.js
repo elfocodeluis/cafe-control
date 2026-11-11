@@ -934,3 +934,30 @@ function bindDevolver(root, vendId, nombre, recargar) {
 }
 
 document.addEventListener('DOMContentLoaded', boot);
+
+/* ---------- aviso de versión nueva ----------
+   Cada publicación escribe version.txt y la versión en <meta name="app-v">.
+   Si el navegador trae una versión vieja, se muestra un aviso para actualizar. */
+(() => {
+  const mia = document.querySelector('meta[name="app-v"]')?.content;
+  if (!mia || mia === 'dev') return;
+  let avisado = false;
+  const revisar = async () => {
+    if (avisado) return;
+    try {
+      const r = await fetch('version.txt?t=' + Date.now(), { cache: 'no-store' });
+      if (!r.ok) return;
+      const nueva = (await r.text()).trim();
+      if (!nueva || nueva === mia) return;
+      avisado = true;
+      const b = document.createElement('div');
+      b.className = 'upd-bar';
+      b.innerHTML = '<span>✨ Hay una versión nueva de la app</span><button type="button">Actualizar</button>';
+      b.querySelector('button').addEventListener('click', () => location.reload());
+      document.body.appendChild(b);
+    } catch { /* sin red: se reintenta luego */ }
+  };
+  setTimeout(revisar, 4000);
+  setInterval(revisar, 2 * 60 * 1000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) revisar(); });
+})();

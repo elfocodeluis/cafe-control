@@ -1108,3 +1108,6 @@ body.arrastrando .cesta { border-color: var(--accent); background: var(--accent-
   *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
   .rv { opacity: 1; transform: none; }
 }
+
+.upd-bar { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 9999; display: flex; align-items: center; gap: 14px; padding: 10px 10px 10px 18px; border-radius: 999px; background: var(--surface); border: 1px solid var(--brand); box-shadow: 0 10px 30px rgba(0,0,0,.35); font-size: 14px; max-width: calc(100vw - 32px); }
+.upd-bar button { font: inherit; font-weight: 700; border: 0; border-radius: 999px; padding: 8px 16px; background-color: var(--brand); color: #1a1205; cursor: pointer; }
