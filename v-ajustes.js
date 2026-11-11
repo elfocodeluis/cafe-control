@@ -9,13 +9,21 @@ const CFG_INFO = {
 };
 
 VIEWS['catalogo'] = async (v) => {
-  const [cat, cfg] = await Promise.all([API.rpc('catalogo_admin'), API.rpc('config_lista')]);
+  const [cat, cfg0, muns] = await Promise.all([API.rpc('catalogo_admin'), API.rpc('config_lista'), API.rpc('municipios_lista', { p_todos: true })]);
+  muns.sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+  const cfg = cfg0.filter((c) => !/_paqueteria$/.test(c.clave)); // la paquetería ahora cobra por municipio
   v.innerHTML = `<div class="page-head"><div><h1>Precios</h1><div class="muted small">Cambia un precio y se guarda solo. Las ventas anteriores conservan su precio.</div></div>
       <div class="tools"><input type="search" id="buscar" placeholder="Buscar producto…" style="width:200px"><button class="btn" id="np">+ Producto nuevo</button></div></div>
     <div class="sec-t">⚙️ Reglas de cobro</div>
     <div class="cfg-grid">${cfg.map((c) => { const [e, t, d] = CFG_INFO[c.clave] || ['⚙️', c.nombre, '']; return `<label class="cfg">
       <span class="cfg-e">${e}</span><span class="cfg-t">${esc(t)}</span><span class="cfg-d">${esc(d)}</span>
       <span class="money-in"><span>$</span><input type="number" min="0" step="any" data-cfg="${c.clave}" value="${+c.valor}" inputmode="decimal"></span></label>`; }).join('')}</div>
+    <div class="sec-t">📍 Envío por paquetería según municipio <span class="muted small" style="font-weight:400">lo paga el cliente y es lo que se le paga a la paquetería</span></div>
+    <div class="mun-ed">${muns.map((m) => `<div class="mun-r ${m.activo ? '' : 'off'}" data-mid="${m.id}">
+        <input class="mun-n" data-mf="nombre" value="${esc(m.nombre)}" aria-label="Municipio">
+        <span class="money-in"><span>$</span><input type="number" min="0" step="any" data-mf="precio" value="${+m.precio}" inputmode="decimal"></span>
+        <label class="chk small"><input type="checkbox" data-mf="activo" ${m.activo ? 'checked' : ''}> Activo</label></div>`).join('')}
+      <button class="btn btn-sm" id="nmun">+ Municipio</button></div>
     <div class="sec-t">☕ Lista de precios</div>
     <div class="precios">${cat.map((p) => `<div class="card pr-card ${p.activo ? '' : 'inactivo'}" data-prod="${p.id}" data-busca="${esc((p.sku + ' ' + p.nombre).toLowerCase())}">
       <div class="pr-h"><span class="pcard-e">${EMO_CAT[p.categoria] || '📦'}</span><div><b>${esc(p.sku)}</b> ${p.activo ? '' : '<span class="badge b-err">Inactivo</span>'}<div class="small muted">${esc(p.nombre)}</div></div></div>
@@ -43,6 +51,20 @@ VIEWS['catalogo'] = async (v) => {
   const recargar = () => route();
   const guardado = (el) => { const w = el.closest('.money-in, .cfg, .chk') || el; w.classList.remove('ok'); void w.offsetWidth; w.classList.add('ok'); FX.add(); };
   $('#buscar', v).addEventListener('input', (e) => { const s = e.target.value.trim().toLowerCase(); $$('[data-prod]', v).forEach((c) => c.classList.toggle('hidden', s && !c.dataset.busca.includes(s))); });
+  $$('[data-mf]', v).forEach((i) => i.addEventListener('change', () => {
+    const r = i.closest('[data-mid]');
+    const p = { id: r.dataset.mid, nombre: $('[data-mf=nombre]', r).value, precio: $('[data-mf=precio]', r).value, activo: $('[data-mf=activo]', r).checked };
+    run(i, async () => { await API.rpc('guardar_municipio', { p }); r.classList.toggle('off', !p.activo); guardado(i); toast('Municipio guardado'); });
+  }));
+  $('#nmun', v).addEventListener('click', () => {
+    modal(`<h2>Municipio nuevo</h2><form id="fmun"><div class="row"><label class="field"><span>Municipio</span><input name="nombre" required placeholder="Ej. Centro"></label>
+      <label class="field"><span>Precio del envío</span><input name="precio" type="number" min="0" step="any" required inputmode="decimal"></label></div>
+      <div class="modal-actions"><button type="button" class="btn" data-close>Cancelar</button><button class="btn btn-primary">Agregar</button></div></form>`);
+    const f = $('#fmun', dlg);
+    f.addEventListener('submit', (e) => { e.preventDefault(); run(f.querySelector('.btn-primary'), async () => {
+      await API.rpc('guardar_municipio', { p: { nombre: f.nombre.value, precio: f.precio.value } }); dlg.close(); toast('Municipio agregado'); recargar();
+    }); });
+  });
   $$('[data-cfg]', v).forEach((i) => i.addEventListener('change', () => run(i, async () => { await API.rpc('guardar_config', { p_clave: i.dataset.cfg, p_valor: +i.value }); guardado(i); toast('Guardado'); })));
   $$('[data-op]', v).forEach((i) => { i.dataset.prev = i.value; i.addEventListener('change', () => {
     if (i.value === '' || +i.value < 0) { i.value = i.dataset.prev; return toast('Escribe un precio válido', true); }

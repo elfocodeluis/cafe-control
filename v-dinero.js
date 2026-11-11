@@ -83,7 +83,7 @@ function bloqueVentas(box, d, r) {
         </tbody></table></div>` : `<div class="empty">Sin merma ${per} ✓</div>`}</div>
     </div>`;
   $('[data-kpi=envios]', box)?.addEventListener('click', () => modal(`<h2>Envíos nacionales · ${esc(r.etiqueta)}</h2>
-    <div class="muted small">Cada venta por paquetería: el cliente paga el producto + ${money0(ME.envio_cobro_paqueteria || 100)} por transferencia; se paga la paquetería y la comisión del vendedor.</div>
+    <div class="muted small">Cada venta por paquetería: el cliente paga el producto + el envío de su municipio por transferencia; se paga la paquetería y la comisión del vendedor.</div>
     ${d.envios_lista.length ? `<div class="tbl-wrap" style="margin-top:12px"><table class="tbl"><thead><tr><th>Folio</th><th>Cliente</th><th class="num">Cobrado</th><th class="num">Paquetería</th><th class="num">Vendedor</th><th class="num">Queda</th></tr></thead><tbody>
       ${d.envios_lista.map((x) => `<tr><td>${folio(x.id)}<div class="small muted">${fecha(x.fecha)}</div></td><td><b>${esc(x.cliente)}</b><div class="small muted">${esc(x.vendedor)}${x.verificada ? '' : ' · <span style="color:var(--warn)">por verificar</span>'}</div></td>
         <td class="num">${money0(x.total)}</td><td class="num">${money0(x.envio_costo)}</td><td class="num">${money0(x.comision)}</td><td class="num"><b>${money0(x.total - x.envio_costo - x.comision)}</b></td></tr>`).join('')}
@@ -490,7 +490,7 @@ VIEWS['caja'] = async (v, q) => {
       const x = g();
       if (origen !== 'banco') origen = vend;
       $('#penv', f).innerHTML = `<div class="paq-list">${x.envios.map((e) => `<label class="paq-i"><input type="checkbox" data-env="${e.venta_id}" checked>
-          <span class="paq-t"><b>Envío de ${esc(e.cliente)}</b><small>Venta #${String(e.venta_id).padStart(4, '0')} · ${fecha(e.fecha)} · cobrada ${money0(e.total)}</small></span><b class="paq-m">${money0(e.pendiente)}</b></label>`).join('')}</div>`;
+          <span class="paq-t"><b>Envío de ${esc(e.cliente)}${e.municipio ? ` <span class="muted">· 📍 ${esc(e.municipio)}</span>` : ''}</b><small>Venta #${String(e.venta_id).padStart(4, '0')} · ${fecha(e.fecha)} · cobrada ${money0(e.total)}</small></span><b class="paq-m">${money0(e.pendiente)}</b></label>`).join('')}</div>`;
       $('#porig', f).innerHTML = `<div class="pick-row" id="porow"><button type="button" class="pick ${origen === 'banco' ? 'on' : ''}" data-o="banco"><span class="mini-ava mini-of">🏦</span>Banco<small>${money0(d.banco)}</small></button>
         <button type="button" class="pick ${origen !== 'banco' ? 'on' : ''}" data-o="${x.vendedor_id}" ${x.en_poder <= 0 ? 'disabled' : ''}><span class="mini-ava">${avatar(x)}</span>De su efectivo<small>trae ${money0(x.en_poder)}</small></button></div>
         <div class="small" id="pwarn" style="color:var(--err)" hidden>${esc(x.nombre)} no trae suficiente efectivo para todo esto.</div>`;

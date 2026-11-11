@@ -4,10 +4,11 @@
    ===================================================================== */
 VIEWS['ventas'] = async (v, q) => {
   const admin = ME.rol === 'admin';
-  const [perfil, catalogo, vendedores] = await Promise.all([
+  const [perfil, catalogo, vendedores, municipios] = await Promise.all([
     API.rpc('mi_perfil'),
     API.rpc('catalogo_venta'),
     admin ? API.rpc('almacen').then((a) => a.vendedores) : Promise.resolve([{ id: ME.id, nombre: ME.nombre, usuario: ME.usuario, envio_nacional: ME.envio_nacional }]),
+    API.rpc('municipios_lista').catch(() => []),
   ]);
   if (!vendedores.length) {
     v.innerHTML = '<div class="page-head"><h1>Ventas</h1></div><div class="alert alert-warn">No hay vendedores activos. Créalos en Usuarios.</div>';
@@ -28,13 +29,16 @@ VIEWS['ventas'] = async (v, q) => {
   let inv = [];
   let cart = []; // {opcion_id, promo, cantidad}
   let tipo = 'local', metodo = '', ajuste = { modo: 'desc', valor: '' };
+  municipios.sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+  let munId = null; // municipio de destino (paquetería)
+  const mun = () => municipios.find((m) => m.id === munId);
   let efMix = '', extra = '', extraAbierto = false; // pago mixto: cuánto en efectivo · extra (propina) por transferencia
   const hayTr = () => metodo === 'transferencia' || metodo === 'mixto';
   const extraN = () => (hayTr() ? Math.max(0, +extra || 0) : 0);
   const extraSub = () => (extraN() ? `es ${admin ? `de ${esc(vend().nombre)}` : 'tuyo'} · no cuenta como venta` : 'Toca si el cliente te transfirió propina o servicio');
   const efectivoN = (t) => (metodo === 'efectivo' ? t : metodo === 'mixto' ? Math.max(0, +efMix || 0) : 0);
   const puedePaq = () => !!vend()?.envio_nacional;
-  const envio = () => (tipo === 'paqueteria' ? +perfil.envio_cobro_paqueteria : tipo === 'local' ? +perfil.envio_cobro_local : 0);
+  const envio = () => (tipo === 'paqueteria' ? +(mun()?.precio || 0) : tipo === 'local' ? +perfil.envio_cobro_local : 0);
   const opDe = (id) => catalogo.find((o) => o.opcion_id === +id);
   const invDe = (presId) => inv.find((i) => i.presentacion_id === presId)?.piezas || 0;
   const piezasLinea = (l) => { const o = opDe(l.opcion_id); return l.promo ? 3 * l.cantidad : l.cantidad * o.piezas; };
@@ -88,17 +92,20 @@ VIEWS['ventas'] = async (v, q) => {
       ${!hayStock ? `<div class="alert alert-warn">${admin ? `${esc(vend().nombre)} no tiene piezas. Entrégale producto en <a href="#/entregar?v=${vendId}">Producir y entregar</a>.` : 'No tienes piezas para vender. Pide producto en "Pedir producto".'}</div>` : ''}
       <div class="paso"><div class="paso-n">1</div><div class="paso-b"><div class="paso-t">¿Cómo se entrega?</div>
         <div class="tiles tiles-3" id="tipos">
-          ${[['tienda', '🏪', 'En tienda', 'Sin cargo'], ['local', '🛵', 'Envío local', 'Sin cargo'], ['paqueteria', '📦', 'Paquetería', `+${money0(perfil.envio_cobro_paqueteria)} · solo transferencia`]].map(([k, e, t, s]) => {
+          ${[['tienda', '🏪', 'En tienda', 'Sin cargo'], ['local', '🛵', 'Envío local', 'Sin cargo'], ['paqueteria', '📦', 'Paquetería', tipo === 'paqueteria' && mun() ? `${esc(mun().nombre)} +${money0(mun().precio)}` : 'Según municipio · solo transferencia']].map(([k, e, t, s]) => {
             const lock = k === 'paqueteria' && !puedePaq();
             return `<button type="button" class="tile ${tipo === k ? 'on' : ''}" data-t="${k}" ${lock ? 'disabled' : ''}>
               <span class="tile-e">${e}</span><span class="tile-t">${t}</span><span class="tile-s">${lock ? `${admin ? 'Actívalo en Usuarios' : 'No habilitado'}` : s}</span></button>`;
           }).join('')}
         </div></div></div>
-      <div class="paso"><div class="paso-n">2</div><div class="paso-b"><div class="paso-t">¿Qué se lleva? <span class="muted small" style="font-weight:400">${admin ? `stock de ${esc(vend().nombre)}` : 'tu stock'} · toca para agregar</span></div>
+      ${tipo === 'paqueteria' ? `<div class="paso paso-mun ${munId ? '' : 'falta'}" id="pasomun"><div class="paso-n">2</div><div class="paso-b"><div class="paso-t">¿A qué municipio va? <span class="muted small" style="font-weight:400">el envío cuesta según el destino</span></div>
+        <div class="mun-grid" id="muns">${municipios.length ? municipios.map((m) => `<button type="button" class="mun ${m.id === munId ? 'on' : ''}" data-mun="${m.id}"><span>${esc(m.nombre)}</span><b>${money0(m.precio)}</b></button>`).join('') : '<div class="empty">No hay municipios. El admin los agrega en Precios.</div>'}</div>
+      </div></div>` : ''}
+      <div class="paso"><div class="paso-n">${tipo === 'paqueteria' ? 3 : 2}</div><div class="paso-b"><div class="paso-t">¿Qué se lleva? <span class="muted small" style="font-weight:400">${admin ? `stock de ${esc(vend().nombre)}` : 'tu stock'} · toca para agregar</span></div>
         <div class="pk" id="prods">${stockTiles() || '<div class="empty">Sin piezas para vender</div>'}</div>
         <div id="carrito" class="cesta"></div>
       </div></div>
-      <div class="paso"><div class="paso-n">3</div><div class="paso-b"><div class="paso-t">Cliente y pago</div>
+      <div class="paso"><div class="paso-n">${tipo === 'paqueteria' ? 4 : 3}</div><div class="paso-b"><div class="paso-t">Cliente y pago</div>
         <div class="row">
           <label class="field"><span>Nombre del cliente</span><input id="cliente" list="dl-clientes" placeholder="Ej. Tienda Lupita" autocomplete="off"><datalist id="dl-clientes"></datalist></label>
           <label class="field"><span>Teléfono <i class="muted">(opcional)</i></span><input id="telefono" type="tel" inputmode="tel" placeholder="10 dígitos"></label>
@@ -135,7 +142,16 @@ VIEWS['ventas'] = async (v, q) => {
       </div>`;
 
     keep.forEach(([id, val]) => { const el = $('#' + id, box); if (el && val) el.value = val; });
-    $$('#tipos .tile', box).forEach((b) => b.addEventListener('click', () => { tipo = b.dataset.t; pintarNueva(); }));
+    $$('#tipos .tile', box).forEach((b) => b.addEventListener('click', () => {
+      tipo = b.dataset.t;
+      if (tipo === 'paqueteria' && !munId) { // cliente conocido: su último municipio
+        const c = clientes.find((x) => x.nombre.toLowerCase() === ($('#cliente', v)?.value || '').trim().toLowerCase());
+        const m = c?.municipio && municipios.find((x) => x.nombre === c.municipio); if (m) munId = m.id;
+      }
+      pintarNueva();
+      if (tipo === 'paqueteria' && !munId) $('#pasomun', v)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }));
+    $$('#muns .mun', box).forEach((b) => b.addEventListener('click', () => { munId = +b.dataset.mun; FX.tap(); pintarNueva(); }));
     $$('#metodos .tile', box).forEach((b) => b.addEventListener('click', () => {
       metodo = b.dataset.m; $$('#metodos .tile', box).forEach((x) => x.classList.toggle('on', x === b));
       $('#mixbox', box).classList.toggle('hidden', metodo !== 'mixto'); $('#trbox', box).classList.toggle('hidden', !hayTr());
@@ -175,7 +191,12 @@ VIEWS['ventas'] = async (v, q) => {
     const ci = $('#cliente', v);
     if (ci && !ci.dataset.b) {
       ci.dataset.b = 1;
-      ci.addEventListener('change', () => { const c = clientes.find((x) => x.nombre.toLowerCase() === ci.value.trim().toLowerCase()); if (c?.telefono && !$('#telefono', v).value) $('#telefono', v).value = c.telefono; });
+      ci.addEventListener('change', () => {
+        const c = clientes.find((x) => x.nombre.toLowerCase() === ci.value.trim().toLowerCase());
+        if (c?.telefono && !$('#telefono', v).value) $('#telefono', v).value = c.telefono;
+        const m = tipo === 'paqueteria' && !munId && c?.municipio && municipios.find((x) => x.nombre === c.municipio);
+        if (m) { munId = m.id; pintarNueva(); toast(`${c.nombre}: envío a ${m.nombre}`); }
+      });
     }
   }
 
@@ -347,9 +368,9 @@ VIEWS['ventas'] = async (v, q) => {
     el.textContent = money0(t);
     el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump');
     const com = cart.length ? +perfil.comision_venta : 0;
-    const paq = tipo === 'paqueteria' ? +perfil.envio_cobro_paqueteria : 0;
+    const paq = tipo === 'paqueteria' ? envio() : 0;
     const partes = [`Productos ${money0(productos())}`];
-    if (env) partes.push(`envío +${money0(env)}`);
+    if (env) partes.push(`envío${tipo === 'paqueteria' && mun() ? ` a ${esc(mun().nombre)}` : ''} +${money0(env)}`);
     if (d) partes.push(`descuento −${money0(d)}`);
     const quien = admin ? esc(vend().nombre) : 'tú';
     const ef = efectivoN(t), ex = extraN(), tr = t - ef, ret = Math.min(com, ef), debe = com - ret + ex;
@@ -369,6 +390,7 @@ VIEWS['ventas'] = async (v, q) => {
   async function cobrar(e) {
     const btn = e.currentTarget;
     const cliente = $('#cliente', v).value.trim();
+    if (tipo === 'paqueteria' && !mun()) { $('#pasomun', v)?.scrollIntoView({ behavior: 'smooth', block: 'center' }); return toast('Elige a qué municipio va el envío', true); }
     if (!cart.length) return toast('Agrega al menos un producto', true);
     if (!cliente) { $('#cliente', v).focus(); return toast('Escribe el nombre del cliente', true); }
     if (!metodo) return toast('Elige efectivo, transferencia o mixto', true);
@@ -394,12 +416,13 @@ VIEWS['ventas'] = async (v, q) => {
         p_nota: $('#nota', v).value || null, p_telefono: $('#telefono', v).value || null,
         p_descuento: descuento(),
         p_efectivo: metodo === 'mixto' ? ef : null, p_extra: ex,
+        p_municipio: tipo === 'paqueteria' ? munId : null,
       });
     });
     if (!r) return; // no se registró: el carrito sigue igual para intentar de nuevo
     // la venta ya existe: se limpia el carrito pase lo que pase con la verificación
     const eraTransf = hayTr();
-    cart = []; metodo = ''; ajuste.valor = ''; tipo = 'local'; limpiarForm = true; efMix = ''; extra = ''; extraAbierto = false;
+    cart = []; metodo = ''; ajuste.valor = ''; tipo = 'local'; munId = null; limpiarForm = true; efMix = ''; extra = ''; extraAbierto = false;
     let verifOk = !verificarYa;
     if (verificarYa) {
       try { await API.rpc('verificar_transferencia', { p_venta: r.venta_id, p_verificada: true }); verifOk = true; }
@@ -487,7 +510,7 @@ VIEWS['ventas'] = async (v, q) => {
           <td class="num">${pz}</td>
           <td class="num"><b>${money0(x.total)}</b>${+x.descuento ? `<div class="small muted">−${money0(x.descuento)}</div>` : ''}</td>
           <td>${pagoBadges(x, false)}${x.metodo === 'mixto' && !x.anulada ? `<div class="small muted">💵 ${money0(x.pago_efectivo)} · 🏦 ${money0(x.pago_transfer)}</div>` : ''}</td>
-          <td><span class="badge ${x.tipo === 'paqueteria' ? 'b-brand' : ''}">${TIPOS_VENTA[x.tipo]}</span></td>
+          <td><span class="badge ${x.tipo === 'paqueteria' ? 'b-brand' : ''}">${TIPOS_VENTA[x.tipo]}</span>${x.municipio ? `<div class="small muted">📍 ${esc(x.municipio)}</div>` : ''}</td>
           <td class="actions">${admin && !x.anulada && esTr ? `<label class="chk small" title="Verificada en el banco (${money0(pagoTr(x))})"><input type="checkbox" data-verif="${x.id}" ${x.verificada ? 'checked' : ''}> ok</label>` : ''}
             ${puedeCambiarPago(x, admin) ? `<button class="btn btn-sm btn-ghost" data-cpago="${x.id}" title="Cambiar cómo pagó">💱</button>` : ''}
             ${admin && !x.anulada ? `<button class="btn btn-sm btn-ghost" data-anular="${x.id}" title="Cancelar venta">✕</button>` : ''}</td>
@@ -561,7 +584,7 @@ VIEWS['ventas'] = async (v, q) => {
   $$('#avas .ava-pick', v).forEach((b) => b.addEventListener('click', () => {
     if (b.dataset.v === vendId) return;
     vendId = b.dataset.v; store.set('ventas.vend', vendId);
-    cart = []; ajuste.valor = ''; tipo = 'local'; metodo = ''; efMix = ''; extra = ''; extraAbierto = false;
+    cart = []; ajuste.valor = ''; tipo = 'local'; munId = null; metodo = ''; efMix = ''; extra = ''; extraAbierto = false;
     $$('#avas .ava-pick', v).forEach((x) => x.classList.toggle('on', x === b));
     cargarTodo();
   }));
@@ -704,7 +727,7 @@ async function tableroVendedor(box, { vendId, r, p, inv, admin, recargar, vigent
       <div class="dash-b"><div class="dash-t">🔁 Transferencias ${esc(per)} <span class="muted small">${admin ? 'enciende el foco cuando la veas en tu banca móvil' : 'el foco se pone verde cuando el admin la confirma'}</span></div>
         ${tr.length ? `<div class="trl">${tr.map((x) => `<div class="tr-i ${x.verificada ? 'ok' : 'pend'}">
           <span class="foco ${x.verificada ? 'foco-ok' : 'foco-am'}" title="${x.verificada ? 'Verificada en el banco' : 'Por verificar'}"></span>
-          <div><b>${esc(x.cliente)}</b><div class="small muted">${folio(x.id)} · ${r.hoy ? hora(x.fecha) : fecha(x.fecha)}${x.tipo === 'paqueteria' ? ' · 📦 paquetería' : ''}${x.referencia ? ` · ref ${esc(x.referencia)}` : ''}</div></div>
+          <div><b>${esc(x.cliente)}</b><div class="small muted">${folio(x.id)} · ${r.hoy ? hora(x.fecha) : fecha(x.fecha)}${x.tipo === 'paqueteria' ? ` · 📦 ${x.municipio ? esc(x.municipio) : 'paquetería'}` : ''}${x.referencia ? ` · ref ${esc(x.referencia)}` : ''}</div></div>
           <b>${money0((+x.pago_transfer || 0) + (+x.extra || 0))}${x.metodo === 'mixto' ? ' <span class="badge b-brand">mixto</span>' : ''}${+x.extra ? ` <span class="badge b-extra">+${money0(x.extra)} extra</span>` : ''}</b>
           ${admin ? `<label class="sw" title="${x.verificada ? 'Verificada' : 'Marcar verificada'}"><input type="checkbox" data-verif="${x.id}" ${x.verificada ? 'checked' : ''}><i></i></label>` : `<span class="small ${x.verificada ? '' : 'warn-t'}">${x.verificada ? 'verificada' : 'por verificar'}</span>`}
         </div>`).join('')}</div>` : `<div class="empty">Sin transferencias ${esc(per)}</div>`}
