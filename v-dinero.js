@@ -6,7 +6,9 @@ const catGasto = (k) => CATS_GASTO.find((c) => c[0] === k) || ['otros', '🧾', 
 const TIPO_DIN = { venta: 'Venta', reverso: 'Reverso', pago_comision: 'Comisión', pago_envio: 'Pago a paquetería', gasto: 'Gasto', ingreso: 'Ingreso', deposito: 'Depósito', retiro: 'Retiro', ajuste: 'Ajuste', entrega: 'Efectivo recibido', pago_proveedor: 'Pago a proveedor', compra: 'Compra', extra: '🎁 Extra / propina (del vendedor)' };
 const tipoDin = (m) => m.tipo === 'venta' ? (m.cuenta === 'banco' ? '🔁 Transferencia de venta' : 'Venta en efectivo')
   : m.tipo === 'pago_comision' ? (m.venta_id ? 'Comisión (se la quedó)' : m.cuenta === 'caja' ? 'Comisión/extras tomados de su efectivo' : 'Comisión/extras pagados del banco')
-  : m.tipo === 'deposito' ? (m.cuenta === 'banco' ? '🏧 Depósito de efectivo' : 'Retiro de caja → banco') : (TIPO_DIN[m.tipo] || m.tipo);
+  : m.tipo === 'deposito' ? (m.cuenta === 'banco' ? '🏧 Depósito de efectivo' : 'Retiro de caja → banco')
+  : m.tipo === 'retiro' && RET_CAT[m.categoria] ? RET_CAT[m.categoria] : (TIPO_DIN[m.tipo] || m.tipo);
+const RET_CAT = { prestamo: '🤝 Préstamo a admin', sueldo: '💼 Sueldo de admin', otro: '🏦 Retiro de admin', devolucion: '↩️ Devolución de préstamo' };
 
 // Banco: lo que entró − lo que salió. Con `acumulado` también muestra con cuánto empezó y con cuánto terminó el periodo.
 function bancoCuadre(bp, r, acumulado = true) {
@@ -236,17 +238,20 @@ function bindMovs(box) {
    Comisiones de ventas por transferencia y la paquetería quedan "por pagar". */
 VIEWS['caja'] = async (v, q) => {
   const ACCIONES = [['deposito', '🏧', 'Depósito', 'efectivo de un vendedor'], ['pago_comision', '🎁', 'Pagar comisión', 'y extras de vendedores'], ['pago_envio', '📦', 'Pagar paquetería', 'envíos pendientes'],
-    ['gasto', '🧾', 'Gasto', 'gasolina, bolsas…'], ['pago_proveedor', '🤝', 'Pagar proveedor', 'abonar a deuda'], ['ingreso', '➕', 'Otro ingreso', 'que no es venta'], ['ajuste', '⚖️', 'Ajuste', 'corregir saldo']];
+    ['gasto', '🧾', 'Gasto', 'gasolina, bolsas…'], ['retiro_admin', '🏦', 'Préstamo / retiro', 'admin · sale del banco'], ['pago_proveedor', '🤝', 'Pagar proveedor', 'abonar a deuda'], ['ingreso', '➕', 'Otro ingreso', 'que no es venta'], ['ajuste', '⚖️', 'Ajuste', 'corregir saldo']];
   v.innerHTML = `<div class="page-head"><div><span class="eyebrow"><span class="vivo"></span>En vivo · hoy</span><h1>Caja y banco</h1><div class="muted small">${fechaDia(new Date().toISOString())} · quién trae el efectivo, qué entró al banco y qué falta pagar</div></div></div>
     <div class="acciones">${ACCIONES.map(([k, e, t, s]) => `<button type="button" class="tile tile-sm" data-op="${k}"><span class="tile-e">${e}</span><span class="tile-t">${t}</span><span class="tile-s">${s}</span></button>`).join('')}</div>
     <div id="cj"></div>
     <div class="ana-head" id="hist-h"><div><span class="eyebrow">Solo lectura</span><h1>Historial</h1><div class="muted small">Días que ya pasaron, con el saldo acumulado del banco</div></div><div class="tools">${rangoHTML('semana', true, { quick: RAPIDOS_ANA, analitica: true })}</div></div>
     <div id="hist"></div>`;
   let d = null;
+  let adminsCache = [];
 
   const load = async () => {
     const r = hoyRango();
-    d = await API.rpc('tesoreria', { p_desde: r.desde, p_hasta: r.hasta });
+    let admins;
+    [d, admins] = await Promise.all([API.rpc('tesoreria', { p_desde: r.desde, p_hasta: r.hasta }), API.rpc('retiros_admin', { p_desde: r.desde, p_hasta: r.hasta }).catch(() => [])]);
+    adminsCache = admins;
     const per = r.hoy ? 'hoy' : r.etiqueta.toLowerCase();
     const vs = d.vendedores;
     const pp = d.por_pagar, pg = d.pagado, bp = d.banco_periodo;
@@ -277,7 +282,7 @@ VIEWS['caja'] = async (v, q) => {
           ${totDeuda ? `<button type="button" class="pv-link deuda" data-ir="deudas">🤝 Debemos ${money0(totDeuda)} a proveedores →</button>` : ''}</div>
       </div>
 
-      ${tabsHTML('caja', [['pagar', 'Por pagar', totPorPagar ? '!' : ''], ['vend', 'Vendedores'], ['gastos', 'Gastos y proveedores'], ['movs', 'Movimientos', d.movimientos.length || '']], 'pagar')}
+      ${tabsHTML('caja', [['pagar', 'Por pagar', totPorPagar ? '!' : ''], ['vend', 'Vendedores'], ['gastos', 'Gastos y proveedores'], ['admins', 'Administradores', admins.some((a) => +a.prestamo_pendiente > 0) ? '!' : ''], ['movs', 'Movimientos', d.movimientos.length || '']], 'pagar')}
       <div data-panel="caja:pagar">
       <div class="card porpagar ${totPorPagar ? 'warn' : ''}" id="porpagar">
         <div class="card-head"><h2>🧾 Por pagar</h2><span class="badge ${totPorPagar ? 'b-warn' : 'b-ok'}">${totPorPagar ? `${money0(totPorPagar)} pendiente` : 'Todo pagado ✓'}</span></div>
@@ -351,8 +356,20 @@ VIEWS['caja'] = async (v, q) => {
           : '<div class="empty">Sin deudas con proveedores</div>'}
           <details class="cb-box" id="cbanco"><summary>🏦 Compras pagadas por banco (últimos 30 días) · corregir si eran consignación</summary><div class="cb-list"><div class="empty">Cargando…</div></div></details></div>
       </div></div>
+      <div data-panel="caja:admins" hidden>
+        <div class="card"><div class="card-head"><h2>🏦 Préstamos y retiros de administradores</h2><button class="btn btn-sm btn-primary" data-op="retiro_admin">+ Préstamo / retiro</button></div>
+          <div class="small muted" style="margin-bottom:12px">Dinero que un administrador saca del banco. Los <b>préstamos</b> se quedan como deuda del administrador hasta que los devuelve; el <b>sueldo</b> y otros retiros solo quedan registrados.</div>
+          ${admins.length ? `<div class="adm-grid">${admins.map((a) => `<div class="adm-c">
+            <div class="adm-h"><span class="lado-ava">${avatar(a)}</span><div><b>${esc(a.nombre)}</b><div class="small muted">${esc(per)}: ${[+a.prestamos && `préstamos ${money0(a.prestamos)}`, +a.sueldos && `sueldo ${money0(a.sueldos)}`, +a.otros && `otros ${money0(a.otros)}`, +a.devoluciones && `devolvió ${money0(a.devoluciones)}`].filter(Boolean).join(' · ') || 'sin retiros'}</div></div></div>
+            <div class="adm-debe ${+a.prestamo_pendiente ? '' : 'ok'}"><span>${+a.prestamo_pendiente ? 'Debe de préstamos' : 'No debe préstamos'}</span><b>${money0(a.prestamo_pendiente)}</b>
+              ${+a.prestamo_pendiente ? `<button class="btn btn-sm" data-devolver="${a.id}">↩️ Devolvió</button>` : ''}</div>
+            ${a.movs.length ? `<div class="adm-movs">${a.movs.map((m) => `<div class="adm-m"><span>${RET_CAT[m.categoria] || 'Retiro'}<small>${fecha(m.fecha)}${m.concepto && m.concepto.includes(' · ') ? ' · ' + esc(m.concepto.split(' · ').slice(1).join(' · ')) : ''}</small></span><b style="color:${m.monto < 0 ? 'var(--err)' : 'var(--ok)'}">${m.monto > 0 ? '+' : ''}${money0(m.monto)}</b></div>`).join('')}</div>` : ''}
+          </div>`).join('')}</div>` : '<div class="empty">No hay administradores activos</div>'}
+        </div>
+      </div>
       <div data-panel="caja:movs" hidden>${tablaMovs(d.movimientos, r, per)}</div>`;
     const irCaja = bindTabs(box, 'caja');
+    $$('[data-devolver]', box).forEach((b) => b.addEventListener('click', () => formDevolver(admins.find((a) => a.id === b.dataset.devolver))));
     animarNumeros(box);
     $$('[data-depositar]', box).forEach((b) => b.addEventListener('click', () => formDinero('deposito', { vendedor: b.dataset.depositar })));
     $$('[data-pcom]', box).forEach((b) => b.addEventListener('click', () => formDinero('pago_comision', { vendedor: b.dataset.pcom, origen: b.dataset.o })));
@@ -449,8 +466,51 @@ VIEWS['caja'] = async (v, q) => {
     gasto: ['🧾 Registrar gasto', 'Dinero que sale para operar: gasolina, bolsas, empaque, taxis…'],
     pago_proveedor: ['🤝 Pagar a proveedor', 'Abona a lo que se debe de mercancía a consignación o crédito.'],
     ingreso: ['➕ Otro ingreso', 'Dinero que entra y no es venta (aportación, préstamo…).'],
+    retiro_admin: ['🏦 Préstamo o retiro de administrador', 'Dinero que un administrador saca del banco: préstamo (lo devuelve después), sueldo u otro retiro. Queda registrado quién lo tomó.'],
     ajuste: ['⚖️ Ajuste de saldo', 'Corrige el saldo después de revisar el banco o contar el efectivo de un vendedor. Usa negativo para restar.'],
   };
+  // Préstamo / retiro del banco para un administrador
+  function formRetiro(pre = {}) {
+    const admins = adminsCache.length ? adminsCache : [{ id: ME.id, nombre: ME.nombre, usuario: ME.usuario, prestamo_pendiente: 0 }];
+    let quien = admins.some((a) => a.id === ME.id) ? ME.id : admins[0].id, motivo = 'prestamo';
+    const MOT = [['prestamo', '🤝', 'Préstamo', 'lo devuelve después'], ['sueldo', '💼', 'Sueldo', 'pago al administrador'], ['otro', '🏦', 'Otro retiro', 'escribe para qué']];
+    modal(`<h2>🏦 Préstamo o retiro del banco</h2><div class="muted">Sale del banco y queda registrado qué administrador lo tomó.</div>
+      <form id="fret">
+        <div class="field"><span>¿Quién lo toma?</span><div class="pick-row" id="rq">${admins.map((a) => `<button type="button" class="pick ${a.id === quien ? 'on' : ''}" data-q="${a.id}"><span class="mini-ava">${avatar(a)}</span>${esc(a.nombre)}<small>${+a.prestamo_pendiente ? `debe ${money0(a.prestamo_pendiente)}` : 'no debe'}</small></button>`).join('')}</div></div>
+        <div class="field"><span>¿Para qué?</span><div class="tiles tiles-3" id="rm">${MOT.map(([k, e, t, s]) => `<button type="button" class="tile tile-sm ${k === motivo ? 'on' : ''}" data-m="${k}"><span class="tile-e">${e}</span><span class="tile-t">${t}</span><span class="tile-s">${s}</span></button>`).join('')}</div></div>
+        <div class="row"><label class="field"><span>¿Cuánto?</span><input name="m" type="number" min="1" step="any" inputmode="decimal" required placeholder="Ej. 2000"></label>
+          <label class="field"><span id="rcl">Nota <i class="muted">(opcional)</i></span><input name="c" placeholder="Ej. quincena del 15"></label></div>
+        <div class="small" id="rwarn" style="color:var(--warn)" hidden></div>
+        <div class="small muted">En el banco hay ${money0(d.banco)} según la app.</div>
+        <div class="modal-actions"><button type="button" class="btn" data-close>Cancelar</button><button class="btn btn-primary" id="rgo">Registrar retiro</button></div>
+      </form>`);
+    const f = $('#fret', dlg);
+    const pinta = () => {
+      const m = +f.m.value || 0;
+      $('#rcl', f).innerHTML = motivo === 'otro' ? '¿Para qué es?' : 'Nota <i class="muted">(opcional)</i>';
+      f.c.required = motivo === 'otro';
+      const w = $('#rwarn', f); w.hidden = !(m > 0 && m > +d.banco); w.textContent = `Ojo: es más de lo que hay en el banco según la app (${money0(d.banco)}).`;
+      $('#rgo', f).textContent = m ? `Retirar ${money0(m)}` : 'Registrar retiro';
+    };
+    $$('#rq .pick', f).forEach((b) => b.addEventListener('click', () => { quien = b.dataset.q; $$('#rq .pick', f).forEach((y) => y.classList.toggle('on', y === b)); }));
+    $$('#rm .tile', f).forEach((b) => b.addEventListener('click', () => { motivo = b.dataset.m; $$('#rm .tile', f).forEach((y) => y.classList.toggle('on', y === b)); pinta(); }));
+    f.m.addEventListener('input', pinta); pinta(); f.m.focus();
+    f.addEventListener('submit', (e) => { e.preventDefault(); run($('#rgo', f), async () => {
+      await API.rpc('retiro_admin', { p_monto: +f.m.value, p_motivo: motivo, p_concepto: f.c.value || null, p_admin: quien });
+      dlg.close(); toast(`Registrado: ${money0(+f.m.value)} ${motivo === 'prestamo' ? 'de préstamo' : motivo === 'sueldo' ? 'de sueldo' : 'retirado'} · ${admins.find((a) => a.id === quien).nombre}`); load(); recargarHist();
+    }); });
+  }
+  function formDevolver(a) {
+    modal(`<h2>↩️ Devolución de préstamo</h2><div class="muted">${esc(a.nombre)} regresa al banco dinero que pidió prestado. Debe ${money0(a.prestamo_pendiente)}.</div>
+      <form id="fdev"><div class="row"><label class="field"><span>¿Cuánto devolvió?</span><input name="m" type="number" min="1" step="any" max="${+a.prestamo_pendiente}" value="${+a.prestamo_pendiente}" inputmode="decimal" required></label>
+        <label class="field"><span>Nota <i class="muted">(opcional)</i></span><input name="c"></label></div>
+        <div class="modal-actions"><button type="button" class="btn" data-close>Cancelar</button><button class="btn btn-primary">Registrar devolución</button></div></form>`);
+    const f = $('#fdev', dlg);
+    f.addEventListener('submit', (e) => { e.preventDefault(); run(f.querySelector('.btn-primary'), async () => {
+      await API.rpc('devolver_prestamo', { p_monto: +f.m.value, p_admin: a.id, p_concepto: f.c.value || null });
+      dlg.close(); toast(`Devolución registrada: ${money0(+f.m.value)}`); load(); recargarHist();
+    }); });
+  }
   // Pagar paquetería: por vendedor y por envío (cliente), como "Pagar comisión"
   async function formPaq(pre = {}) {
     const lista = await API.rpc('paqueteria_pendiente').catch((e) => { toast(e.message, true); return null; });
@@ -511,6 +571,7 @@ VIEWS['caja'] = async (v, q) => {
   }
   function formDinero(tipo, pre = {}) {
     if (tipo === 'pago_envio') return formPaq(pre);
+    if (tipo === 'retiro_admin') return formRetiro(pre);
     if (!d) return toast('Espera un segundo, todavía se están cargando los saldos', true);
     const [tit, desc] = TIT[tipo];
     const vs = d.vendedores;
