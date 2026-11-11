@@ -52,7 +52,6 @@ VIEWS['ventas'] = async (v, q) => {
   v.innerHTML = `
     <div class="page-head"><div><h1>${admin ? 'Ventas' : 'Vender'}</h1><div class="muted small">${fechaDia(new Date().toISOString())}</div></div>
       <div class="tools">${rangoHTML('hoy')}</div></div>
-    ${promoHoy ? '<div class="promo-banner"><span class="promo-tag">3×2</span> Hoy hay promoción en piezas de 14 g de café (B-GUM, TROP-M y AFG-HZ): se llevan 3 y pagan 2.</div>' : ''}
     ${admin ? `<div class="ava-row" id="avas">${vendedores.map((x) => `
       <button type="button" class="ava-pick ${x.id === vendId ? 'on' : ''}" data-v="${x.id}">
         <span class="ava-wrap">${avatar(x)}</span>
@@ -200,7 +199,7 @@ VIEWS['ventas'] = async (v, q) => {
     const tam = def.piezas > 1 ? nomOp(def) : i.presentacion === 'Pieza' ? '1 pieza' : i.presentacion;
     return `<div class="stk-w">
       <div class="stk stk-${i.categoria || 'cafe'} ${q < def.piezas ? 'agotado' : ''}" data-op="${def.opcion_id}" data-pres="${i.presentacion_id}" role="button" tabindex="0" aria-label="Agregar ${esc(i.producto)} ${esc(tam)}, ${money0(def.precio)}">
-        <span class="stk-g">${esc(tam)}</span>
+        <span class="stk-g ${tam.length > 7 ? 'stk-g-l' : ''}">${esc(tam)}</span>
         <span class="stk-pr">${money0(def.precio)}</span>
         <span class="stk-q"><b data-n>${q}</b> ${q === 1 ? 'queda' : 'quedan'}</span>
       </div>
@@ -589,7 +588,6 @@ VIEWS['inicio'] = async (v) => {
     <div class="hola card"><span class="hola-ava">${avatar(perfil)}</span>
       <div><h1>¡Hola, ${esc(perfil.nombre)}!</h1><div class="muted">${fechaDia(now.toISOString())}</div></div>
       <a class="btn btn-primary btn-lg" href="#/ventas">+ Nueva venta</a></div>
-    ${perfil.dia_promo ? '<div class="promo-banner"><span class="promo-tag">3×2</span> Hoy aplica la promoción en piezas de 14 g de café (B-GUM, TROP-M y AFG-HZ).</div>' : ''}
     <div class="kpis">
       ${kpi('Vendí hoy', cuenta(t.total), `${t.num} venta${t.num == 1 ? '' : 's'} · ${fnum(t.piezas)} pz`, 'hl')}
       ${kpi('Mi comisión', cuenta(t.comision), +p.comision_pendiente ? `me deben ${money0(p.comision_pendiente)}${t.extra ? ' (con extras)' : ' de transferencias'}` : `${money0(perfil.comision_venta)} por venta · todo pagado ✓`, +p.comision_pendiente ? 'warn' : '')}

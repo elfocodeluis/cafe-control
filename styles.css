@@ -655,6 +655,7 @@ body.arrastrando, body.arrastrando * { cursor: grabbing !important; user-select:
 .pk .stk::before { display: none; }
 @media (hover: hover) { .pk .stk:hover { transform: translateY(-3px); border-color: var(--cat, #8a5a3c); } }
 .stk-g { font-size: 26px; font-weight: 800; line-height: 1.05; letter-spacing: -.02em; }
+.stk-g.stk-g-l { font-size: 19px; line-height: 1.15; }
 .pk .stk-pr { font-size: 21px; font-weight: 750; color: var(--brand); font-variant-numeric: tabular-nums; }
 .stk-q { font-size: 12px; color: var(--muted); }
 .stk-q b { font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }

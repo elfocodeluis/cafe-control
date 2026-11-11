@@ -33,7 +33,6 @@ VIEWS['catalogo'] = async (v) => {
         </div>
         ${p.presentaciones.map((pr) => `<div class="mas-pr">
           <b>${esc(pr.nombre)}</b>${pr.gramos ? ` <span class="small muted">${es14(pr.gramos) ? '35 pz = 500 g' : fnum(pr.gramos, 2) + ' g c/u'}</span>` : ''}
-          <label class="chk small"><input type="checkbox" data-prf="promo_3x2" data-pr="${pr.id}" data-n="${esc(pr.nombre)}" ${pr.promo_3x2 ? 'checked' : ''}> 3×2 fin de semana</label>
           <label class="chk small"><input type="checkbox" data-prf="activo" data-pr="${pr.id}" data-n="${esc(pr.nombre)}" ${pr.activo ? 'checked' : ''}> Activa</label>
           ${pr.opciones.length > 1 || pr.opciones.some((o) => !o.activo) ? pr.opciones.map((o) => `<label class="chk small"><input type="checkbox" data-opa="${o.id}" ${o.activo ? 'checked' : ''}> ${esc(o.nombre)}</label>`).join('') : ''}
           <button class="btn btn-sm btn-ghost" data-addop="${pr.id}">+ Paquete</button></div>`).join('')}
@@ -52,7 +51,7 @@ VIEWS['catalogo'] = async (v) => {
   $$('[data-opa]', v).forEach((i) => i.addEventListener('change', () => run(i, async () => { await API.rpc('guardar_opcion', { p: { id: i.dataset.opa, activo: i.checked } }); guardado(i); })));
   $$('[data-prf]', v).forEach((i) => i.addEventListener('change', () => run(i, async () => {
     const id = i.dataset.pr;
-    await API.rpc('guardar_presentacion', { p: { id, nombre: i.dataset.n, promo_3x2: $(`[data-prf=promo_3x2][data-pr="${id}"]`, v).checked, activo: $(`[data-prf=activo][data-pr="${id}"]`, v).checked } });
+    await API.rpc('guardar_presentacion', { p: { id, nombre: i.dataset.n, promo_3x2: false, activo: $(`[data-prf=activo][data-pr="${id}"]`, v).checked } });
     guardado(i);
   })));
   $$('[data-savep]', v).forEach((b) => b.addEventListener('click', async () => {
@@ -82,12 +81,11 @@ VIEWS['catalogo'] = async (v) => {
       <form id="fpr"><div class="row"><label class="field"><span>Nombre</span><input name="n" required placeholder="Ej. 250 g"></label>
       <label class="field"><span>Gramos por pieza</span><input name="g" type="number" min="0.1" step="any" required></label>
       <label class="field"><span>Precio por pieza</span><input name="pr" type="number" min="0" step="any" required></label></div>
-      <label class="chk"><input type="checkbox" name="promo"> Promo 3x2 fin de semana</label>
       <div class="modal-actions"><button type="button" class="btn" data-close>Cancelar</button><button class="btn btn-primary">Agregar</button></div></form>`);
     $('#fpr', dlg).addEventListener('submit', async (e) => {
       e.preventDefault(); const f = e.target;
       await run($('.btn-primary', dlg), async () => {
-        const r = await API.rpc('guardar_presentacion', { p: { producto_id: b.dataset.addpr, nombre: f.n.value, gramos: f.g.value, promo_3x2: f.promo.checked } });
+        const r = await API.rpc('guardar_presentacion', { p: { producto_id: b.dataset.addpr, nombre: f.n.value, gramos: f.g.value, promo_3x2: false } });
         await API.rpc('guardar_opcion', { p: { presentacion_id: r.id, nombre: 'Pieza', piezas: 1, precio: f.pr.value } });
         dlg.close(); toast('Presentación agregada'); recargar();
       });

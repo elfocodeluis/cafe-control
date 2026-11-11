@@ -304,7 +304,7 @@ VIEWS['entregar'] = async (v, q) => {
       </div>
       <div class="pres-grid" style="margin-top:14px">${p.presentaciones.map((pr) => `<div class="pres ${estado[pr.id] ? 'on' : ''}" data-box="${pr.id}">
         <div class="t">${esc(pr.nombre)}</div>
-        <div class="s">${es14(pr.gramos) ? '35 piezas = 500 g' : `${fnum(pr.gramos, 1)} g c/u`} · ${money0(pr.precio_pieza)}</div>
+        <div class="s">${es14(pr.gramos) ? '35 piezas = 500 g' : pr.gramos && Math.abs(pr.gramos / GRAMOS_14 - Math.round(pr.gramos / GRAMOS_14)) < 0.001 ? `cada uno = ${Math.round(pr.gramos / GRAMOS_14)} piezas de 14 g` : `${fnum(pr.gramos, 1)} g c/u`} · ${money0(pr.precio_pieza)}</div>
         <div class="stepper stepper-sm"><button type="button" data-m="${pr.id}" data-d="-1">−</button>
           <input type="number" min="0" step="1" inputmode="numeric" data-pr="${pr.id}" value="${estado[pr.id] || ''}" placeholder="0">
           <button type="button" data-m="${pr.id}" data-d="1">+</button></div>
