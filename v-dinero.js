@@ -451,7 +451,66 @@ VIEWS['caja'] = async (v, q) => {
     ingreso: ['➕ Otro ingreso', 'Dinero que entra y no es venta (aportación, préstamo…).'],
     ajuste: ['⚖️ Ajuste de saldo', 'Corrige el saldo después de revisar el banco o contar el efectivo de un vendedor. Usa negativo para restar.'],
   };
+  // Pagar paquetería: por vendedor y por envío (cliente), como "Pagar comisión"
+  async function formPaq(pre = {}) {
+    const lista = await API.rpc('paqueteria_pendiente').catch((e) => { toast(e.message, true); return null; });
+    if (!lista) return;
+    if (!lista.length) return toast('No se le debe nada a la paquetería ✓', true);
+    const vends = [];
+    lista.forEach((x) => { let g = vends.find((y) => y.vendedor_id === x.vendedor_id); if (!g) vends.push(g = { vendedor_id: x.vendedor_id, nombre: x.vendedor, usuario: x.usuario, en_poder: +x.en_poder, comision: +x.comision_pendiente, envios: [], total: 0 }); g.envios.push(x); g.total += +x.pendiente; });
+    let vend = (pre.vendedor && vends.find((g) => g.vendedor_id === pre.vendedor)) ? pre.vendedor : vends[0].vendedor_id;
+    let origen = 'banco';
+    const g = () => vends.find((x) => x.vendedor_id === vend);
+    modal(`<h2>📦 Pagar paquetería</h2><div class="muted">Envíos ya cobrados al cliente (transferencia verificada) que falta pagar. Se paga por cada envío y queda ligado a su venta.</div>
+      <form id="fpaq">
+        <div class="field"><span>¿A quién se le debe?</span><div class="pick-row" id="pvend">${vends.map((x) => `<button type="button" class="pick ${x.vendedor_id === vend ? 'on' : ''}" data-v="${x.vendedor_id}"><span class="mini-ava">${avatar(x)}</span>${esc(x.nombre)}<small>${x.envios.length} ${x.envios.length === 1 ? 'envío' : 'envíos'} · ${money0(x.total)}</small></button>`).join('')}</div></div>
+        <div class="field"><span>¿Qué envíos?</span><div id="penv"></div></div>
+        <div class="field"><span>¿De dónde sale?</span><div id="porig"></div></div>
+        <div id="pcom"></div>
+        <div class="paq-tot"><span>Total a pagar</span><b id="ptot"></b></div>
+        <div class="modal-actions"><button type="button" class="btn" data-close>Cancelar</button><button class="btn btn-primary" id="pgo">Pagar</button></div>
+      </form>`);
+    const f = $('#fpaq', dlg);
+    const sel = () => $$('[data-env]', f).filter((c) => c.checked).map((c) => +c.dataset.env);
+    const total = () => {
+      const env = g().envios.filter((x) => sel().includes(x.venta_id)).reduce((t, x) => t + +x.pendiente, 0);
+      const com = $('#pcomchk', f)?.checked ? g().comision : 0;
+      return { env, com, tot: env + com };
+    };
+    const pinta = () => {
+      const t = total();
+      $('#ptot', f).textContent = money0(t.tot);
+      $('#pgo', f).textContent = t.tot ? `Pagar ${money0(t.tot)}` : 'Pagar';
+      $('#pgo', f).disabled = !t.tot;
+      const sin = origen !== 'banco' && t.tot > g().en_poder + 0.005;
+      $('#pgo', f).disabled = !t.tot || sin;
+      $('#pwarn', f) && ($('#pwarn', f).hidden = !sin);
+    };
+    const render = () => {
+      const x = g();
+      if (origen !== 'banco') origen = vend;
+      $('#penv', f).innerHTML = `<div class="paq-list">${x.envios.map((e) => `<label class="paq-i"><input type="checkbox" data-env="${e.venta_id}" checked>
+          <span class="paq-t"><b>Envío de ${esc(e.cliente)}</b><small>Venta #${String(e.venta_id).padStart(4, '0')} · ${fecha(e.fecha)} · cobrada ${money0(e.total)}</small></span><b class="paq-m">${money0(e.pendiente)}</b></label>`).join('')}</div>`;
+      $('#porig', f).innerHTML = `<div class="pick-row" id="porow"><button type="button" class="pick ${origen === 'banco' ? 'on' : ''}" data-o="banco"><span class="mini-ava mini-of">🏦</span>Banco<small>${money0(d.banco)}</small></button>
+        <button type="button" class="pick ${origen !== 'banco' ? 'on' : ''}" data-o="${x.vendedor_id}" ${x.en_poder <= 0 ? 'disabled' : ''}><span class="mini-ava">${avatar(x)}</span>De su efectivo<small>trae ${money0(x.en_poder)}</small></button></div>
+        <div class="small" id="pwarn" style="color:var(--err)" hidden>${esc(x.nombre)} no trae suficiente efectivo para todo esto.</div>`;
+      $('#pcom', f).innerHTML = x.comision > 0 ? `<label class="paq-com"><input type="checkbox" id="pcomchk"> <span>Pagar también su comisión y extras pendientes <b>${money0(x.comision)}</b></span></label>` : '';
+      $$('[data-env]', f).forEach((c) => c.addEventListener('change', pinta));
+      $('#pcomchk', f)?.addEventListener('change', pinta);
+      $$('#porow .pick', f).forEach((b) => b.addEventListener('click', () => { if (b.disabled) return; origen = b.dataset.o; $$('#porow .pick', f).forEach((y) => y.classList.toggle('on', y === b)); pinta(); }));
+      pinta();
+    };
+    $$('#pvend .pick', f).forEach((b) => b.addEventListener('click', () => { vend = b.dataset.v; origen = 'banco'; $$('#pvend .pick', f).forEach((y) => y.classList.toggle('on', y === b)); render(); }));
+    render();
+    f.addEventListener('submit', (e) => { e.preventDefault(); const t = total(); const ids = sel(); run($('#pgo', f), async () => {
+      const cuenta = origen === 'banco' ? 'banco' : 'caja';
+      if (ids.length) await API.rpc('pagar_paqueteria', { p_ventas_json: ids, p_cuenta: cuenta });
+      if (t.com > 0) await API.rpc('registrar_dinero', { p_tipo: 'pago_comision', p_cuenta: cuenta, p_monto: t.com, p_concepto: null, p_vendedor: vend });
+      dlg.close(); toast(`Pagado ${money0(t.tot)}${ids.length ? ` · ${ids.length} ${ids.length === 1 ? 'envío' : 'envíos'}` : ''}${t.com ? ' + comisión' : ''}`); load(); recargarHist();
+    }); });
+  }
   function formDinero(tipo, pre = {}) {
+    if (tipo === 'pago_envio') return formPaq(pre);
     if (!d) return toast('Espera un segundo, todavía se están cargando los saldos', true);
     const [tit, desc] = TIT[tipo];
     const vs = d.vendedores;

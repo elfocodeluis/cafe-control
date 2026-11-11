@@ -777,6 +777,17 @@ body.arrastrando .cesta { border-color: var(--accent); background: var(--accent-
 .pvg-b { padding: 0 14px 6px; border-top: 1px dashed var(--border); }
 .pvs-tot { display: flex; justify-content: space-between; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
 .pvs-tot b { color: var(--warn); font-size: 18px; }
+.paq-list { display: grid; gap: 8px; }
+.paq-i { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 14px; border: 1px solid var(--border); background: var(--surface-2); cursor: pointer; }
+.paq-i:has(input:checked) { border-color: var(--brand); background: var(--brand-soft); }
+.paq-i input { width: 20px; height: 20px; accent-color: var(--brand); flex: none; }
+.paq-t { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.paq-t small { color: var(--muted); font-size: 12px; }
+.paq-m { font-size: 17px; font-variant-numeric: tabular-nums; }
+.paq-com { display: flex; gap: 10px; align-items: center; padding: 12px 14px; border-radius: 14px; border: 1px dashed var(--border-2); margin: 4px 0 10px; cursor: pointer; }
+.paq-com input { width: 20px; height: 20px; accent-color: var(--brand); }
+.paq-tot { display: flex; justify-content: space-between; align-items: baseline; padding: 12px 2px; border-top: 1px solid var(--border); margin-top: 6px; }
+.paq-tot b { font-size: 24px; font-variant-numeric: tabular-nums; }
 .deuda-fix { font: inherit; font-size: 12px; color: var(--muted); background: none; border: 0; padding: 4px 0 0; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
 .deuda-fix:hover { color: var(--brand); }
 .cb-box { margin-top: 14px; }
