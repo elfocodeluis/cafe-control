@@ -15,7 +15,10 @@ VIEWS['almacen'] = async (v) => {
   // Valor al público: con el precio más bajo por gramo/pieza (seguro) y con el más alto (vendiendo en piezas chicas)
   const pub = (p) => {
     const ps = p.presentaciones.filter((pr) => +pr.precio_pieza > 0);
-    const unit = ps.map((pr) => p.modo === 'gramos' ? (+pr.gramos ? pr.precio_pieza / pr.gramos : 0) : pr.precio_pieza).filter((x) => x > 0);
+    const unit = ps.flatMap((pr) => {
+      const pz = (pr.opciones || []).length ? pr.opciones.map((o) => o.precio / o.piezas) : [+pr.precio_pieza];
+      return pz.map((x) => p.modo === 'gramos' ? (+pr.gramos ? x / pr.gramos : 0) : x);
+    }).filter((x) => x > 0);
     if (!unit.length) return { min: 0, max: 0 };
     return { min: +p.stock * Math.min(...unit), max: +p.stock * Math.max(...unit) };
   };
@@ -35,7 +38,7 @@ VIEWS['almacen'] = async (v) => {
       <div class="tools"><a class="btn btn-primary" href="#/entregar">☕ Producir y entregar</a></div></div>
     ${adm ? `<div class="kpis kpis-g4 alm-kpis">
       ${kpi('Valor a costo', money0(total), 'lo que pagaste por lo que hay')}
-      ${kpi('Valor al público', money0(pubMin), pubMax > pubMin + 1 ? `hasta <b>${money0(pubMax)}</b> si se vende en piezas chicas` : 'precio de venta', { cls: 'hl' })}
+      ${kpi('Valor al público', money0(pubMin), pubMax > pubMin + 1 ? `hasta <b>${money0(pubMax)}</b> si se vende en piezas o paquetes chicos` : 'precio de venta', { cls: 'hl' })}
       ${kpi('Ganancia esperada', money0(gan), `${pctM(total, pubMin)}% de margen${pubMax > pubMin + 1 ? ` · hasta ${money0(pubMax - total)}` : ''}`, { cls: gan >= 0 ? 'ok' : 'bad' })}
       ${kpi('Alertas', `${agotados.length + bajos.length}`, `${agotados.length} sin stock · ${bajos.length} poco stock`, { cls: agotados.length + bajos.length ? 'warn' : '' })}
     </div>
@@ -58,7 +61,7 @@ VIEWS['almacen'] = async (v) => {
         <div class="small muted pcard-s">${p.modo === 'gramos' && p.gramos_por_unidad != 1000 ? `${fnum(p.stock / p.gramos_por_unidad, 2)} bolsas · ` : ''}${pz14 ? `alcanza para ~${fnum(pz14)} piezas de 14 g` : p.modo === 'piezas' ? 'piezas sueltas' : ''}</div>
         ${adm && !sin ? `<div class="pcard-m">
           <div><small>Costo</small><b>${money0(p.costo)}</b></div>
-          <div><small>Público</small><b>${money0(p.pub.min)}</b></div>${p.pub.max > p.pub.min + 1 ? `<div class="pm-max"><small>En piezas chicas</small><b>hasta ${money0(p.pub.max)}</b></div>` : ''}
+          <div><small>Público</small><b>${money0(p.pub.min)}</b></div>${p.pub.max > p.pub.min + 1 ? `<div class="pm-max"><small>${p.modo === 'piezas' ? 'En paquetes chicos' : 'En piezas chicas'}</small><b>hasta ${money0(p.pub.max)}</b></div>` : ''}
           <div><small>Ganancia</small><b class="${p.pub.min - p.costo >= 0 ? 'pos' : 'neg'}">${money0(p.pub.min - p.costo)}</b><em>${pctM(p.costo, p.pub.min)}%</em></div>
         </div>` : ''}
         <div class="pcard-a"><button class="btn btn-sm btn-primary" data-ent="${p.id}">+ Entrada</button><button class="btn btn-sm" data-det="${p.id}">Detalles</button></div>
@@ -274,11 +277,13 @@ VIEWS['entregar'] = async (v, q) => {
       const inp = $('#pzs', box);
       const upd = () => {
         retirar = parseInt(inp.value) || 0;
-        const ref = pr ? pr.precio_pieza : 0;
+        const ops = pr && (pr.opciones || []).length ? pr.opciones : [{ nombre: 'Pieza', piezas: 1, precio: pr ? +pr.precio_pieza : 0 }];
+        const pzs = ops.map((o) => o.precio / o.piezas);
+        const lo = retirar * Math.min(...pzs), hi = retirar * Math.max(...pzs);
         $('#calc', box).innerHTML = `<div><div class="l">Piezas</div><div class="v">${fnum(retirar)}</div></div>
           ${adm ? `<div><div class="l">Costo</div><div class="v">${money(retirar * p.costo_base)}</div></div>` : ''}
-          <div><div class="l">Valor al público</div><div class="v">${money(retirar * ref)}</div></div>
-          ${p.categoria === 'filtro' ? '<div><div class="l">Nota</div><div class="small">Se venden en paquetes de 2, 12 o 25. Valor a $' + fnum(ref, 2) + '/pz (paquete de 25).</div></div>' : ''}`;
+          <div><div class="l">Valor al público</div><div class="v">${hi > lo + 0.5 ? `${money0(lo)} – ${money0(hi)}` : money(lo)}</div></div>
+          ${ops.length > 1 ? `<div class="calc-w"><div class="l">Depende de cómo los venda · el valor real queda en cada venta</div><div class="small">${ops.map((o) => `Todo en ${esc(o.nombre.toLowerCase())}: <b>${money0(retirar * o.precio / o.piezas)}</b> <span class="muted">(${money0(o.precio / o.piezas)}/pz)</span>`).join('<br>')}</div></div>` : ''}`;
       };
       inp.addEventListener('input', upd);
       $$('[data-st]', box).forEach((b) => b.addEventListener('click', () => { inp.value = Math.max(0, Math.min(p.stock, (parseInt(inp.value) || 0) + +b.dataset.st)); upd(); }));

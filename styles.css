@@ -886,6 +886,8 @@ body.arrastrando .cesta { border-color: var(--accent); background: var(--accent-
 .calc > div { background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; }
 .calc .l { font-size: 12px; color: var(--muted); }
 .calc .v { font-weight: 700; font-size: 17px; font-variant-numeric: tabular-nums; }
+.calc .calc-w { grid-column: 1 / -1; }
+.calc .calc-w .small { line-height: 1.7; margin-top: 4px; }
 .sol-card { border-color: color-mix(in srgb, var(--accent) 50%, var(--border)); }
 .sols { display: grid; gap: 8px; }
 .sol { display: flex; align-items: center; gap: 10px; padding: 11px; border-radius: 14px; background: var(--surface-2); flex-wrap: wrap; transition: background .25s, box-shadow .25s; }
