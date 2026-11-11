@@ -326,11 +326,27 @@ VIEWS['caja'] = async (v, q) => {
             <div class="gtot">Total <b>${money(totGastos)}</b></div>` : `<div class="empty">Sin gastos ${esc(per)}</div>`}</div>
         <div class="card" id="deudas"><div class="card-head"><h2>🤝 Proveedores</h2><button class="btn btn-sm" id="nueva-deuda">+ Deuda</button></div>
           <div class="small muted" style="margin-bottom:8px">Mercancía a consignación o a crédito. Abona desde el banco o con efectivo de un vendedor.</div>
-          ${d.deudas.length ? d.deudas.map((x) => { const pct = x.monto ? (x.pagado / x.monto) * 100 : 0; return `<div class="deuda ${+x.saldo ? '' : 'pagada'}">
-            <div class="deuda-h"><span><b>${esc(x.proveedor)}</b><div class="small muted">${esc(x.concepto)} · ${fecha(x.fecha)}</div></span>
-              ${+x.saldo ? `<button class="btn btn-sm btn-primary" data-abonar="${x.id}">Abonar</button>` : '<span class="badge b-ok">Pagada ✓</span>'}</div>
-            <div class="bar bar-lg"><i style="width:${pct}%"></i></div>
-            <div class="small muted">Pagado ${money0(x.pagado)} de ${money0(x.monto)}${+x.saldo ? ` · <b style="color:var(--warn)">resta ${money0(x.saldo)}</b>` : ''}</div></div>`; }).join('')
+          ${d.deudas.length ? (() => {
+            const grupos = [];
+            d.deudas.forEach((x) => {
+              const k = String(x.proveedor || 'Sin nombre').trim().toUpperCase();
+              let g = grupos.find((y) => y.k === k); if (!g) grupos.push(g = { k, nombre: x.proveedor, items: [], monto: 0, pagado: 0, saldo: 0 });
+              g.items.push(x); g.monto += +x.monto; g.pagado += +x.pagado; g.saldo += +x.saldo;
+            });
+            grupos.sort((a, b) => b.saldo - a.saldo);
+            return `<div class="pvs">${grupos.map((g) => { const pct = g.monto ? (g.pagado / g.monto) * 100 : 0; const abiertas = g.items.filter((x) => +x.saldo > 0).length; return `<details class="pvg ${g.saldo ? '' : 'pagada'}">
+              <summary class="pvg-h"><span class="pvg-ava">${esc(g.nombre.trim().slice(0, 1).toUpperCase())}</span>
+                <span class="pvg-t"><b>${esc(g.nombre)}</b><span class="small muted">${g.items.length} ${g.items.length === 1 ? 'compra' : 'compras'} · pagado ${money0(g.pagado)}</span>
+                  <span class="bar"><i style="width:${pct}%"></i></span></span>
+                <span class="pvg-v">${g.saldo ? `<small>se le debe</small><b>${money0(g.saldo)}</b>` : '<span class="badge b-ok">Pagado ✓</span>'}</span><span class="pvg-car">›</span></summary>
+              <div class="pvg-b">${g.items.map((x) => { const pc = x.monto ? (x.pagado / x.monto) * 100 : 0; return `<div class="deuda ${+x.saldo ? '' : 'pagada'}">
+                <div class="deuda-h"><span><b>${esc(String(x.concepto || '').split(' · ').filter((t) => t.trim().toUpperCase() !== g.k).join(' · '))}</b><div class="small muted">${fecha(x.fecha)}</div></span>
+                  ${+x.saldo ? `<button class="btn btn-sm btn-primary" data-abonar="${x.id}">Abonar</button>` : '<span class="badge b-ok">Pagada ✓</span>'}</div>
+                <div class="bar bar-lg"><i style="width:${pc}%"></i></div>
+                <div class="small muted">Pagado ${money0(x.pagado)} de ${money0(x.monto)}${+x.saldo ? ` · <b style="color:var(--warn)">resta ${money0(x.saldo)}</b>` : ''}</div></div>`; }).join('')}</div>
+            </details>`; }).join('')}</div>
+            <div class="pvs-tot">Total que se debe <b>${money0(grupos.reduce((t, g) => t + g.saldo, 0))}</b></div>`;
+          })()
           : '<div class="empty">Sin deudas con proveedores</div>'}</div>
       </div></div>
       <div data-panel="caja:movs" hidden>${tablaMovs(d.movimientos, r, per)}</div>`;

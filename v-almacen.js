@@ -12,23 +12,58 @@ VIEWS['almacen'] = async (v) => {
   const alm = await API.rpc('almacen');
   const adm = alm.es_admin;
   const costoTxt = (p) => p.modo === 'gramos' ? `${money(p.costo_unidad)} / ${esc(p.unidad_compra)}` : `${money(p.costo_unidad)} / pieza`;
-  const total = alm.productos.reduce((s, p) => s + +p.valor, 0);
-  const bajos = alm.productos.filter((p) => nivel(p).bajo);
+  // Valor al público: con el precio más bajo por gramo/pieza (seguro) y con el más alto (vendiendo en piezas chicas)
+  const pub = (p) => {
+    const ps = p.presentaciones.filter((pr) => +pr.precio_pieza > 0);
+    const unit = ps.map((pr) => p.modo === 'gramos' ? (+pr.gramos ? pr.precio_pieza / pr.gramos : 0) : pr.precio_pieza).filter((x) => x > 0);
+    if (!unit.length) return { min: 0, max: 0 };
+    return { min: +p.stock * Math.min(...unit), max: +p.stock * Math.max(...unit) };
+  };
+  const prods = alm.productos.map((p) => ({ ...p, pub: pub(p), costo: +p.valor || 0, n: nivel(p) }));
+  const total = prods.reduce((s, p) => s + p.costo, 0);
+  const pubMin = prods.reduce((s, p) => s + p.pub.min, 0);
+  const pubMax = prods.reduce((s, p) => s + p.pub.max, 0);
+  const gan = pubMin - total;
+  const agotados = prods.filter((p) => +p.stock <= 0);
+  const bajos = prods.filter((p) => +p.stock > 0 && p.n.bajo);
+  const cats = [];
+  prods.forEach((p) => { const k = p.categoria || 'otro'; let c = cats.find((x) => x.k === k); if (!c) cats.push(c = { k, items: [], costo: 0, pub: 0 }); c.items.push(p); c.costo += p.costo; c.pub += p.pub.min; });
+  const maxCat = Math.max(1, ...cats.map((c) => c.pub || c.costo));
+  const pctM = (c, pu) => pu > 0 ? Math.round(((pu - c) / pu) * 100) : 0;
   v.innerHTML = `
-    <div class="page-head"><div><h1>Almacén</h1><div class="muted small">${adm ? `Valor a costo: <b>${money0(total)}</b> · ` : ''}${alm.productos.length} productos${bajos.length ? ` · <span style="color:var(--warn)">${bajos.length} con poco stock</span>` : ''}</div></div>
+    <div class="page-head"><div><h1>Almacén</h1><div class="muted small">${prods.length} productos${bajos.length ? ` · <span style="color:var(--warn)">${bajos.length} con poco stock</span>` : ''}${agotados.length ? ` · <span style="color:var(--err)">${agotados.length} sin stock</span>` : ''}</div></div>
       <div class="tools"><a class="btn btn-primary" href="#/entregar">☕ Producir y entregar</a></div></div>
-    <div class="prod-grid">${alm.productos.map((p) => {
-      const n = nivel(p);
+    ${adm ? `<div class="kpis kpis-g4 alm-kpis">
+      ${kpi('Valor a costo', money0(total), 'lo que pagaste por lo que hay')}
+      ${kpi('Valor al público', money0(pubMin), pubMax > pubMin + 1 ? `hasta <b>${money0(pubMax)}</b> si se vende en piezas chicas` : 'precio de venta', { cls: 'hl' })}
+      ${kpi('Ganancia esperada', money0(gan), `${pctM(total, pubMin)}% de margen${pubMax > pubMin + 1 ? ` · hasta ${money0(pubMax - total)}` : ''}`, { cls: gan >= 0 ? 'ok' : 'bad' })}
+      ${kpi('Alertas', `${agotados.length + bajos.length}`, `${agotados.length} sin stock · ${bajos.length} poco stock`, { cls: agotados.length + bajos.length ? 'warn' : '' })}
+    </div>
+    <div class="card alm-cats"><div class="card-head"><h2>Valor por categoría</h2><span class="small muted"><i class="lg lg-c"></i> costo <i class="lg lg-p"></i> público</span></div>
+      ${cats.map((c) => `<div class="ac-row stk-${c.k}"><span class="ac-n">${EMO_CAT[c.k] || '📦'} ${esc(CAT[c.k] || c.k)}</span>
+        <span class="ac-bars"><i class="ac-p" style="width:${(c.pub / maxCat) * 100}%"></i><i class="ac-c" style="width:${(c.costo / maxCat) * 100}%"></i></span>
+        <span class="ac-v"><b>${money0(c.pub)}</b><small>costo ${money0(c.costo)}</small></span></div>`).join('')}
+    </div>` : ''}
+    ${cats.map((c) => `<section class="alm-sec">
+      <div class="alm-sec-h"><h2>${EMO_CAT[c.k] || '📦'} ${esc(CAT[c.k] || c.k)}</h2>${adm ? `<span class="small muted">costo <b>${money0(c.costo)}</b> · público <b>${money0(c.pub)}</b></span>` : ''}</div>
+      <div class="prod-grid">${c.items.map((p) => {
+      const n = p.n;
       const pz14 = p.modo === 'gramos' && p.presentaciones.some((pr) => es14(pr.gramos)) ? Math.floor(p.stock / GRAMOS_14) : 0;
-      return `<div class="pcard ${n.bajo ? 'bajo' : ''}">
-        <div class="pcard-h"><span class="pcard-e">${EMO_CAT[p.categoria] || '📦'}</span><div><b>${esc(p.sku)}</b><div class="small muted">${esc(p.nombre)}</div></div>
-          ${n.bajo ? '<span class="badge b-warn">Poco stock</span>' : ''}</div>
+      const sin = +p.stock <= 0;
+      return `<div class="pcard stk-${c.k} ${sin ? 'agotado' : n.bajo ? 'bajo' : ''}">
+        <div class="pcard-h"><span class="pcard-e">${EMO_CAT[p.categoria] || '📦'}</span><div><b>${esc(p.sku)}</b>${p.nombre !== p.sku ? `<div class="small muted">${esc(p.nombre)}</div>` : ''}</div>
+          ${sin ? '<span class="badge b-err">Sin stock</span>' : n.bajo ? '<span class="badge b-warn">Poco</span>' : ''}</div>
         <div class="pcard-n">${cant(p.stock, p.modo)}</div>
         <div class="bar"><i style="width:${n.pct}%"></i></div>
         <div class="small muted pcard-s">${p.modo === 'gramos' && p.gramos_por_unidad != 1000 ? `${fnum(p.stock / p.gramos_por_unidad, 2)} bolsas · ` : ''}${pz14 ? `alcanza para ~${fnum(pz14)} piezas de 14 g` : p.modo === 'piezas' ? 'piezas sueltas' : ''}</div>
+        ${adm && !sin ? `<div class="pcard-m">
+          <div><small>Costo</small><b>${money0(p.costo)}</b></div>
+          <div><small>Público</small><b>${money0(p.pub.min)}</b></div>${p.pub.max > p.pub.min + 1 ? `<div class="pm-max"><small>En piezas chicas</small><b>hasta ${money0(p.pub.max)}</b></div>` : ''}
+          <div><small>Ganancia</small><b class="${p.pub.min - p.costo >= 0 ? 'pos' : 'neg'}">${money0(p.pub.min - p.costo)}</b><em>${pctM(p.costo, p.pub.min)}%</em></div>
+        </div>` : ''}
         <div class="pcard-a"><button class="btn btn-sm btn-primary" data-ent="${p.id}">+ Entrada</button><button class="btn btn-sm" data-det="${p.id}">Detalles</button></div>
       </div>`;
-    }).join('')}</div>
+    }).join('')}</div></section>`).join('')}
     ${alm.empacado.length ? `<div class="card"><div class="card-head"><h2>📦 Piezas empacadas que regresaron</h2><a class="btn btn-sm" href="#/entregar?o=empacado">Entregar a vendedor</a></div>
       <div class="chips">${alm.empacado.map((e) => `<span class="chip chip-static"><b>${e.piezas}</b> × ${esc(e.descripcion)}</span>`).join('')}</div></div>` : ''}
     <details class="card fold"><summary><h2 style="display:inline">Movimientos del almacén</h2> <span class="muted small">entradas, producción, merma, devoluciones</span></summary>
