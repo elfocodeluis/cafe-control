@@ -617,6 +617,8 @@ details[open] > :not(summary) { animation: panelIn .35s var(--ease); }
 .stk-capsula, .mstk-i.stk-capsula { --cat: #b06a3b; }
 .stk-filtro, .mstk-i.stk-filtro { --cat: #c9b79c; }
 .stk-otro, .mstk-i.stk-otro { --cat: #7c8a8f; }
+.stk-capsula_vps, .mstk-i.stk-capsula_vps { --cat: #8a5aa8; }
+.stk-alimentos, .mstk-i.stk-alimentos { --cat: #a0522d; }
 .stk-ico { position: absolute; top: 11px; right: 11px; font-size: 22px; filter: drop-shadow(0 3px 3px rgba(0, 0, 0, .15)); transition: transform .35s var(--spring); }
 @media (hover: hover) { .stk:hover .stk-ico { transform: rotate(-12deg) scale(1.15); } }
 .stk-n { font-size: 32px; font-weight: 750; line-height: 1; font-variant-numeric: tabular-nums; color: var(--brand); letter-spacing: -.03em; }

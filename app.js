@@ -21,8 +21,8 @@ const fechaDia = (iso) => new Date(iso).toLocaleDateString('es-MX', { weekday: '
 const folio = (id) => '#' + String(id).padStart(4, '0');
 const GRAMOS_14 = 500 / 35;
 const es14 = (g) => g && Math.abs(Number(g) - GRAMOS_14) < 0.001;
-const CAT_ICO = { cafe: '☕', premium: '✨', capsula: '🟤', filtro: '📄', otro: '📦' };
-const CAT = { cafe: 'Café', premium: 'Premium', capsula: 'Cápsulas', filtro: 'Filtros', otro: 'Otro' };
+const CAT_ICO = { cafe: '☕', premium: '✨', capsula: '🟤', capsula_vps: '🟣', filtro: '📄', alimentos: '🍫', otro: '📦' };
+const CAT = { cafe: 'Café', premium: 'Premium', capsula: 'Cápsulas PRE', capsula_vps: 'Cápsulas VPS', filtro: 'Filtros LSB', alimentos: 'Alimentos', otro: 'Otro' };
 const TIPOS_VENTA = { tienda: 'Tienda', local: 'Envío local', paqueteria: 'Paquetería' };
 const ROLES = { admin: 'Administrador', produccion: 'Producción', vendedor: 'Vendedor' };
 const store = {

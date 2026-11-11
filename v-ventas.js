@@ -52,7 +52,7 @@ VIEWS['ventas'] = async (v, q) => {
   v.innerHTML = `
     <div class="page-head"><div><h1>${admin ? 'Ventas' : 'Vender'}</h1><div class="muted small">${fechaDia(new Date().toISOString())}</div></div>
       <div class="tools">${rangoHTML('hoy')}</div></div>
-    ${promoHoy ? '<div class="promo-banner"><span class="promo-tag">3×2</span> Hoy hay promoción en piezas de 14 g de COF-R, COF-NI y COF-F: se llevan 3 y pagan 2.</div>' : ''}
+    ${promoHoy ? '<div class="promo-banner"><span class="promo-tag">3×2</span> Hoy hay promoción en piezas de 14 g de café (B-GUM, TROP-M y AFG-HZ): se llevan 3 y pagan 2.</div>' : ''}
     ${admin ? `<div class="ava-row" id="avas">${vendedores.map((x) => `
       <button type="button" class="ava-pick ${x.id === vendId ? 'on' : ''}" data-v="${x.id}">
         <span class="ava-wrap">${avatar(x)}</span>
@@ -589,7 +589,7 @@ VIEWS['inicio'] = async (v) => {
     <div class="hola card"><span class="hola-ava">${avatar(perfil)}</span>
       <div><h1>¡Hola, ${esc(perfil.nombre)}!</h1><div class="muted">${fechaDia(now.toISOString())}</div></div>
       <a class="btn btn-primary btn-lg" href="#/ventas">+ Nueva venta</a></div>
-    ${perfil.dia_promo ? '<div class="promo-banner"><span class="promo-tag">3×2</span> Hoy aplica la promoción en piezas de 14 g de COF-R, COF-NI y COF-F.</div>' : ''}
+    ${perfil.dia_promo ? '<div class="promo-banner"><span class="promo-tag">3×2</span> Hoy aplica la promoción en piezas de 14 g de café (B-GUM, TROP-M y AFG-HZ).</div>' : ''}
     <div class="kpis">
       ${kpi('Vendí hoy', cuenta(t.total), `${t.num} venta${t.num == 1 ? '' : 's'} · ${fnum(t.piezas)} pz`, 'hl')}
       ${kpi('Mi comisión', cuenta(t.comision), +p.comision_pendiente ? `me deben ${money0(p.comision_pendiente)}${t.extra ? ' (con extras)' : ' de transferencias'}` : `${money0(perfil.comision_venta)} por venta · todo pagado ✓`, +p.comision_pendiente ? 'warn' : '')}

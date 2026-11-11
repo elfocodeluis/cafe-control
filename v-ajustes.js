@@ -98,7 +98,7 @@ VIEWS['catalogo'] = async (v) => {
       <form id="fnp">
         <div class="row"><label class="field"><span>Clave (SKU)</span><input name="sku" required placeholder="COF-X"></label>
         <label class="field"><span>Nombre</span><input name="nombre" required></label></div>
-        <div class="row"><label class="field"><span>Categoría</span><select name="cat"><option value="cafe">Café</option><option value="premium">Premium</option><option value="capsula">Cápsula</option><option value="filtro">Filtro</option><option value="otro">Otro</option></select></label>
+        <div class="row"><label class="field"><span>Categoría</span><select name="cat">${Object.entries(CAT).map(([k, n]) => `<option value="${k}">${n}</option>`).join('')}</select></label>
         <label class="field"><span>Se maneja por</span><select name="modo"><option value="gramos">Gramos (se produce en presentaciones)</option><option value="piezas">Piezas</option></select></label></div>
         <div class="row"><label class="field" data-g><span>Gramos por unidad de compra</span><input name="gpu" type="number" min="1" step="any" value="1000"><small>1000 = se compra por kilo</small></label>
         <label class="field"><span>Costo por unidad de compra</span><input name="costo" type="number" min="0" step="any" required></label></div>
