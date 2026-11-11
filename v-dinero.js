@@ -343,11 +343,13 @@ VIEWS['caja'] = async (v, q) => {
                 <div class="deuda-h"><span><b>${esc(String(x.concepto || '').split(' · ').filter((t) => t.trim().toUpperCase() !== g.k).join(' · '))}</b><div class="small muted">${fecha(x.fecha)}</div></span>
                   ${+x.saldo ? `<button class="btn btn-sm btn-primary" data-abonar="${x.id}">Abonar</button>` : '<span class="badge b-ok">Pagada ✓</span>'}</div>
                 <div class="bar bar-lg"><i style="width:${pc}%"></i></div>
-                <div class="small muted">Pagado ${money0(x.pagado)} de ${money0(x.monto)}${+x.saldo ? ` · <b style="color:var(--warn)">resta ${money0(x.saldo)}</b>` : ''}</div></div>`; }).join('')}</div>
+                <div class="small muted">Pagado ${money0(x.pagado)} de ${money0(x.monto)}${+x.saldo ? ` · <b style="color:var(--warn)">resta ${money0(x.saldo)}</b>` : ''}</div>
+                ${+x.pagado === 0 ? `<button type="button" class="deuda-fix" data-a-banco="${x.id}">¿Se equivocaron? Cambiar a pagado por banco</button>` : ''}</div>`; }).join('')}</div>
             </details>`; }).join('')}</div>
             <div class="pvs-tot">Total que se debe <b>${money0(grupos.reduce((t, g) => t + g.saldo, 0))}</b></div>`;
           })()
-          : '<div class="empty">Sin deudas con proveedores</div>'}</div>
+          : '<div class="empty">Sin deudas con proveedores</div>'}
+          <details class="cb-box" id="cbanco"><summary>🏦 Compras pagadas por banco (últimos 30 días) · corregir si eran consignación</summary><div class="cb-list"><div class="empty">Cargando…</div></div></details></div>
       </div></div>
       <div data-panel="caja:movs" hidden>${tablaMovs(d.movimientos, r, per)}</div>`;
     const irCaja = bindTabs(box, 'caja');
@@ -357,6 +359,38 @@ VIEWS['caja'] = async (v, q) => {
     $$('[data-abonar]', box).forEach((b) => b.addEventListener('click', () => formDinero('pago_proveedor', { deuda: +b.dataset.abonar })));
     $$('[data-op]', box).forEach((b) => b.addEventListener('click', () => formDinero(b.dataset.op)));
     $('#nueva-deuda', box).addEventListener('click', formDeuda);
+    const provs = [...new Set(d.deudas.map((x) => String(x.proveedor || '').trim().toUpperCase()).filter(Boolean))];
+    $$('[data-a-banco]', box).forEach((b) => b.addEventListener('click', () => {
+      const x = d.deudas.find((y) => y.id === +b.dataset.aBanco);
+      modal(`<h2>🏦 Cambiar a pagado por banco</h2><div class="muted">${esc(x.concepto)}</div>
+        <p>Se quita la deuda de <b>${esc(x.proveedor)}</b> y se registra como pagada desde el banco: sale <b>${money0(x.monto)}</b> del banco. El stock no cambia.</p>
+        <div class="modal-actions"><button type="button" class="btn" data-close>Cancelar</button><button class="btn btn-primary" id="okfix">Sí, se pagó por banco</button></div>`);
+      $('#okfix', dlg).addEventListener('click', (e) => run(e.currentTarget, async () => {
+        await API.rpc('corregir_compra', { p_deuda: x.id });
+        dlg.close(); toast('Corregido: quedó pagada por banco'); load(); recargarHist();
+      }));
+    }));
+    const cb = $('#cbanco', box);
+    cb.addEventListener('toggle', async () => {
+      if (!cb.open || cb.dataset.ok) return;
+      const lista = await API.rpc('compras_banco_recientes').catch((e) => { toast(e.message, true); return []; });
+      cb.dataset.ok = '1';
+      $('.cb-list', cb).innerHTML = lista.length ? lista.map((c) => `<div class="cb-row"><span><b>${esc(c.concepto)}</b><div class="small muted">${fecha(c.fecha)}${c.usuario ? ` · por ${esc(c.usuario)}` : ''} · ${money0(c.monto)}</div></span>
+        <button type="button" class="btn btn-sm" data-a-deuda="${c.id}">Era consignación</button></div>`).join('') : '<div class="empty">No hay compras pagadas por banco</div>';
+      $$('[data-a-deuda]', cb).forEach((b) => b.addEventListener('click', () => {
+        const c = lista.find((y) => y.id === +b.dataset.aDeuda);
+        const sug = (String(c.concepto).split(' · ').length > 2 ? String(c.concepto).split(' · ').pop() : '').trim().toUpperCase();
+        modal(`<h2>🤝 Cambiar a consignación</h2><div class="muted">${esc(c.concepto)}</div>
+          <p>Se regresan <b>${money0(c.monto)}</b> al banco y queda como deuda con el proveedor. El stock no cambia.</p>
+          <form id="ffix"><label class="field"><span>Proveedor</span><input name="p" required list="provs-l" value="${esc(sug)}" autocomplete="off"></label>
+          <datalist id="provs-l">${provs.map((p) => `<option value="${esc(p)}">`).join('')}</datalist>
+          <div class="modal-actions"><button type="button" class="btn" data-close>Cancelar</button><button class="btn btn-primary">Sí, era consignación</button></div></form>`);
+        $('#ffix', dlg).addEventListener('submit', (e) => { e.preventDefault(); const f = e.target; run($('.btn-primary', f), async () => {
+          await API.rpc('corregir_compra', { p_dinero: c.id, p_proveedor: f.p.value });
+          dlg.close(); toast('Corregido: ahora es deuda con ' + f.p.value.trim().toUpperCase()); load(); recargarHist();
+        }); });
+      }));
+    });
     bindMovs(box);
     const TAB_DE = { porpagar: 'pagar', deudas: 'gastos' };
     $('[data-ir=deudas]', box)?.addEventListener('click', () => { irCaja('gastos'); $('#deudas', box).scrollIntoView({ behavior: 'smooth', block: 'center' }); });
