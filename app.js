@@ -216,7 +216,7 @@ document.addEventListener('change', (e) => {
 /* ---------- avatares 3D vivos ----------
    Cada personaje está armado en capas (torso → cabeza → cara → pupilas) con degradados
    que le dan volumen. Las capas se mueven distinto según el puntero (paralaje), respiran,
-   parpadean y hacen gestos. Vicente le da tragos a su cola y Rola mordidas a su hamburguesa. */
+   parpadean y hacen gestos. McLovin fuma su pipa y Rola mordidas a su hamburguesa. */
 const AVA_DEFS = `<svg class="ava-defs" width="0" height="0" aria-hidden="true" focusable="false"><defs>
   <radialGradient id="g-gloss" cx="32%" cy="18%" r="75%"><stop offset="0" stop-color="#fff" stop-opacity=".55"/><stop offset=".45" stop-color="#fff" stop-opacity=".08"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>
   <radialGradient id="g-vig" cx="50%" cy="45%" r="62%"><stop offset=".72" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".18"/></radialGradient>
@@ -224,7 +224,10 @@ const AVA_DEFS = `<svg class="ava-defs" width="0" height="0" aria-hidden="true" 
   <radialGradient id="gv-bg" cx="35%" cy="28%" r="85%"><stop offset="0" stop-color="#f2f8fd"/><stop offset="1" stop-color="#bcd3e6"/></radialGradient>
   <radialGradient id="gv-skin" cx="40%" cy="32%" r="78%"><stop offset="0" stop-color="#fff3e8"/><stop offset=".55" stop-color="#f8dcc6"/><stop offset="1" stop-color="#e6b797"/></radialGradient>
   <radialGradient id="gv-beard" cx="45%" cy="30%" r="80%"><stop offset="0" stop-color="#3b3330"/><stop offset=".6" stop-color="#231c1a"/><stop offset="1" stop-color="#120e0d"/></radialGradient>
-  <linearGradient id="gv-shirt" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5287b0"/><stop offset="1" stop-color="#25496a"/></linearGradient>
+  <linearGradient id="gv-shirt" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#e3e0d6"/></linearGradient>
+  <linearGradient id="gv-hair" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3a302c"/><stop offset=".6" stop-color="#1d1715"/><stop offset="1" stop-color="#0e0b0a"/></linearGradient>
+  <linearGradient id="gv-pipa" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#5a3420"/><stop offset=".45" stop-color="#9a5f36"/><stop offset="1" stop-color="#4a2a18"/></linearGradient>
+  <clipPath id="gv-torso"><path d="M16 124c4-24 22-31 44-31s40 7 44 31z"/></clipPath>
   <linearGradient id="gv-cap" x1="0" y1="0" x2=".3" y2="1"><stop offset="0" stop-color="#e5584a"/><stop offset="1" stop-color="#a32d1d"/></linearGradient>
   <linearGradient id="gv-brim" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#b2382a"/><stop offset="1" stop-color="#741f14"/></linearGradient>
   <linearGradient id="gv-can" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#9e1418"/><stop offset=".35" stop-color="#e3262c"/><stop offset=".6" stop-color="#f04a4f"/><stop offset="1" stop-color="#8f1115"/></linearGradient>
@@ -241,52 +244,58 @@ const AVA_DEFS = `<svg class="ava-defs" width="0" height="0" aria-hidden="true" 
   <radialGradient id="gr-bun"cx="40%" cy="25%" r="80%"><stop offset="0" stop-color="#f2be72"/><stop offset=".7" stop-color="#d98f3c"/><stop offset="1" stop-color="#b06d26"/></radialGradient>
 </defs></svg>`;
 
+// flor de la camisa hawaiana (hibisco) con dos hojas
+const flor = (x, y, k = 1) => `<g transform="translate(${x} ${y}) scale(${k})"><ellipse cx="-5" cy="3" rx="4.5" ry="1.8" fill="#3f9a5a" transform="rotate(-25)"/><ellipse cx="5" cy="3.5" rx="4.5" ry="1.8" fill="#2f8049" transform="rotate(30)"/>${[0, 72, 144, 216, 288].map((a) => `<ellipse cx="0" cy="-2.6" rx="2.1" ry="2.9" fill="#e5484d" transform="rotate(${a})"/>`).join('')}<circle r="1.3" fill="#f7c948"/></g>`;
+
 const ojo = (x, y, r = 2.6) => `<g class="ava-ojo"><ellipse cx="${x}" cy="${y}" rx="${r + 1.7}" ry="${r + 2}" fill="#fff"/><g class="ava-pupil"><circle cx="${x}" cy="${y + 0.4}" r="${r}" fill="#2a1f18"/><circle cx="${x + 0.9}" cy="${y - 0.6}" r=".9" fill="#fff"/></g></g>`;
 
 const AVATARES = {
-  // Vicente: piel clara, cabello y barba negros, lentes, gorra roja y su cola de lata
+  // McLovin (usuario "vicente"): cara delgada, cabello negro, lentes y barba, camisa hawaiana blanca y su pipa
   vicente: `<svg viewBox="0 0 120 120" class="ava ava-v" aria-hidden="true">
     <circle cx="60" cy="60" r="60" fill="url(#gv-bg)"/>
     <g class="ava-rig">
       <g class="ava-torso">
         <path d="M16 124c4-24 22-31 44-31s40 7 44 31z" fill="url(#gv-shirt)"/>
-        <path d="M47 93l13 13 13-13z" fill="#1f4060"/><path d="M60 106v18" stroke="#1f4060" stroke-width="1.4"/>
-        <circle cx="60" cy="112" r="1.3" fill="#9fc0dc"/><circle cx="60" cy="119" r="1.3" fill="#9fc0dc"/>
+        <g clip-path="url(#gv-torso)">
+          ${[[27, 110, 1], [45, 118, .8], [79, 113, .9], [96, 106, 1], [66, 123, .8], [20, 122, .7], [102, 121, .8], [36, 100, .6], [86, 97, .6]].map(([x, y, s]) => flor(x, y, s)).join('')}
+        </g>
+        <path d="M51 93l9 15 9-15z" fill="url(#gv-skin)"/>
+        <path d="M49 92.5l11 15.5l-8 2.5l-7-15z" fill="#fbfaf6" stroke="#d8d4c8" stroke-width=".8"/>
+        <path d="M71 92.5l-11 15.5l8 2.5l7-15z" fill="#fbfaf6" stroke="#d8d4c8" stroke-width=".8"/>
+        <path d="M60 108v16" stroke="#d8d4c8" stroke-width="1"/>
+        <circle cx="60" cy="114" r="1.2" fill="#c9c3b4"/><circle cx="60" cy="120" r="1.2" fill="#c9c3b4"/>
       </g>
       <g class="ava-head"><g class="ava-hidle">
-        <ellipse cx="60" cy="92" rx="15" ry="4" fill="#000" opacity=".14"/>
-        <ellipse cx="34" cy="64" rx="5.5" ry="7.5" fill="url(#gv-skin)"/><ellipse cx="86" cy="64" rx="5.5" ry="7.5" fill="url(#gv-skin)"/>
-        <path d="M33 61q2 3 0 6M87 61q-2 3 0 6" stroke="#d9a07c" stroke-width="1.2" fill="none" stroke-linecap="round"/>
-        <ellipse cx="60" cy="63" rx="26" ry="29" fill="url(#gv-skin)"/>
-        <path d="M34.5 50q-2 9 0 17l4-1q-1.5-8 0-15zM85.5 50q2 9 0 17l-4-1q1.5-8 0-15z" fill="#1a1413"/>
-        <path d="M34 64q0 38 26 40q26-2 26-40q-5 12-14 12q-6-5-12-5t-12 5q-9 0-14-12z" fill="url(#gv-beard)"/>
+        <ellipse cx="60" cy="92" rx="12" ry="3.5" fill="#000" opacity=".14"/>
+        <ellipse cx="37.5" cy="64" rx="5" ry="7.2" fill="url(#gv-skin)"/><ellipse cx="82.5" cy="64" rx="5" ry="7.2" fill="url(#gv-skin)"/>
+        <path d="M36.5 61q2 3 0 6M83.5 61q-2 3 0 6" stroke="#d9a07c" stroke-width="1.2" fill="none" stroke-linecap="round"/>
+        <ellipse cx="60" cy="63" rx="22" ry="29" fill="url(#gv-skin)"/>
+        <path d="M38.5 50q-2 9 0 17l3.5-1q-1.3-8 0-15zM81.5 50q2 9 0 17l-3.5-1q1.3-8 0-15z" fill="#1a1413"/>
+        <path d="M38 64q0 38 22 40q22-2 22-40q-4 12-12 12q-5-5-10-5t-10 5q-8 0-12-12z" fill="url(#gv-beard)"/>
         <g class="ava-face">
-          <path class="ava-cejas" d="M43.5 53.5q6.5-4.5 13-.5M63.5 53q6.5-4 13 .5" stroke="#1a1413" stroke-width="3.6" fill="none" stroke-linecap="round"/>
-          <g class="ava-eyes">${ojo(50, 61.5)}${ojo(70, 61.5)}</g>
-          <g fill="none" stroke="#1a1413" stroke-width="2.1"><rect x="41.5" y="55" width="17" height="13" rx="5"/><rect x="61.5" y="55" width="17" height="13" rx="5"/><path d="M58.5 60.5q1.5-1.6 3 0M41.5 59l-6-1.5M78.5 59l6-1.5"/></g>
-          <path d="M44 58.5q3-2 6-1.4M64 58.5q3-2 6-1.4" stroke="#fff" stroke-opacity=".6" stroke-width="1.3" fill="none" stroke-linecap="round"/>
-          <path d="M59 64q-3.5 7 1 9.5q3 .5 4.5-1.5" stroke="#d29a78" stroke-width="2" fill="none" stroke-linecap="round"/>
-          <circle cx="44" cy="72" r="4.2" fill="#f2a28a" opacity=".38"/><circle cx="76" cy="72" r="4.2" fill="#f2a28a" opacity=".38"/>
-          <path d="M46.5 77.5q13.5-7.5 27 0q-13.5 5.5-27 0z" fill="#1a1413"/>
-          <path class="ava-boca" d="M54 83q6 4.5 12 0" stroke="#e8b4a0" stroke-width="2.4" fill="none" stroke-linecap="round"/>
-          <path class="ava-risa" d="M53 82q7 1 14 0q-1 7-7 7t-7-7z" fill="#7a2f1d"/>
+          <path class="ava-cejas" d="M44 53.5q6-4.5 12.5-.5M63.5 53q6.5-4 12.5.5" stroke="#1a1413" stroke-width="3.4" fill="none" stroke-linecap="round"/>
+          <g class="ava-eyes">${ojo(50.5, 61.5)}${ojo(69.5, 61.5)}</g>
+          <g fill="none" stroke="#1a1413" stroke-width="2.1"><rect x="42" y="55" width="16.5" height="13" rx="5"/><rect x="61.5" y="55" width="16.5" height="13" rx="5"/><path d="M58.5 60.5q1.5-1.6 3 0M42 59l-3.5-1M78 59l3.5-1"/></g>
+          <path d="M44.5 58.5q3-2 6-1.4M64 58.5q3-2 6-1.4" stroke="#fff" stroke-opacity=".6" stroke-width="1.3" fill="none" stroke-linecap="round"/>
+          <path d="M59 64q-3 7 1 9.5q3 .5 4-1.5" stroke="#d29a78" stroke-width="2" fill="none" stroke-linecap="round"/>
+          <circle cx="45" cy="72" r="3.6" fill="#f2a28a" opacity=".38"/><circle cx="75" cy="72" r="3.6" fill="#f2a28a" opacity=".38"/>
+          <path d="M47.5 77.5q12.5-7 25 0q-12.5 5-25 0z" fill="#1a1413"/>
+          <path class="ava-boca" d="M54.5 83q5.5 4 11 0" stroke="#e8b4a0" stroke-width="2.4" fill="none" stroke-linecap="round"/>
+          <path class="ava-risa" d="M53.5 82q6.5 1 13 0q-1 6.5-6.5 6.5t-6.5-6.5z" fill="#7a2f1d"/>
         </g>
-        <path d="M32 52q0-28 28-28t28 28z" fill="url(#gv-cap)"/>
-        <path d="M60 24.5v27M46 27q-4 12-4 25M74 27q4 12 4 25" stroke="#8a2517" stroke-width=".9" fill="none" opacity=".45"/>
-        <ellipse cx="60" cy="41" rx="4" ry="5.6" fill="#f6e3cf"/><path d="M60 35.8c-2 3.2 2 7.2 0 10.4" stroke="#a8301f" stroke-width="1.3" fill="none"/>
-        <path d="M30 52q30-9 60 0q9 2 19 5.5q-3 5.5-19 2.5q-30-6-60 0z" fill="url(#gv-brim)"/>
-        <path d="M41 35q9-8 21-7.5" stroke="#fff" stroke-opacity=".5" stroke-width="3" fill="none" stroke-linecap="round"/>
-        <circle cx="60" cy="25" r="3" fill="#8a2517"/>
+        <path d="M37 59q-5-36 23-37q28 1 23 37q-1.5-11-6-16.5q-6 3.5-15 2q-6-4-10-3q-11 2-15 17.5z" fill="url(#gv-hair)"/>
+        <path d="M45 30q9-6 21-4" stroke="#fff" stroke-opacity=".28" stroke-width="2.6" fill="none" stroke-linecap="round"/>
+        <path d="M52 41.5q6-9 17-12M44 46q2-9 10-14" stroke="#000" stroke-opacity=".35" stroke-width="1.1" fill="none" stroke-linecap="round"/>
       </g></g>
       <g class="ava-cup">
-        <g class="ava-burbujas" fill="#fff"><circle cx="86" cy="86" r="1.2"/><circle cx="89.5" cy="85" r=".9"/><circle cx="87.5" cy="85.5" r=".7"/></g>
-        <rect x="80" y="89.5" width="15" height="21.5" rx="2.6" fill="url(#gv-can)"/>
-        <path d="M80 99.5q4-3 7.5 0t7.5 0v3.2q-4-3-7.5 0t-7.5 0z" fill="#fff" opacity=".92"/>
-        <rect x="82.2" y="92" width="1.8" height="17" rx=".9" fill="#fff" opacity=".35"/>
-        <ellipse cx="87.5" cy="89.6" rx="7.5" ry="2" fill="#dfe3e7"/><ellipse cx="87.5" cy="89.4" rx="5.4" ry="1.2" fill="#a8aeb4"/>
-        <path d="M86 88.9h3.2" stroke="#7d848a" stroke-width="1.2" stroke-linecap="round"/>
-        <ellipse cx="88" cy="111" rx="8" ry="5.5" fill="url(#gv-skin)"/>
-        <path d="M82 109.5q6 2 12 0" stroke="#d9a07c" stroke-width="1" fill="none"/>
+        <g class="ava-humo" fill="#eef0f2"><circle cx="95" cy="91" r="2.2"/><circle cx="96.5" cy="90" r="1.8"/><circle cx="94" cy="90.5" r="1.5"/></g>
+        <path d="M74 103.5q9-1 15.5-3.5" stroke="#2b1b12" stroke-width="2.6" fill="none" stroke-linecap="round"/>
+        <path d="M74 103.5q4-.5 6-1" stroke="#111" stroke-width="2.8" fill="none" stroke-linecap="round"/>
+        <path d="M88 94h12v7q0 7-6 7t-6-7z" fill="url(#gv-pipa)"/>
+        <ellipse cx="94" cy="94" rx="6" ry="1.8" fill="#3a2215"/><ellipse cx="94" cy="94" rx="4.4" ry="1.1" fill="#e2622b" opacity=".9"/>
+        <path d="M90 97q0 7 3 9" stroke="#fff" stroke-opacity=".3" stroke-width="1.3" fill="none" stroke-linecap="round"/>
+        <ellipse cx="91" cy="110" rx="8" ry="5.5" fill="url(#gv-skin)"/>
+        <path d="M85 108.5q6 2 12 0" stroke="#d9a07c" stroke-width="1" fill="none"/>
       </g>
     </g>
     <circle cx="60" cy="60" r="60" fill="url(#g-vig)"/>
@@ -384,6 +393,7 @@ const AVATARES = {
   </svg>`,
 };
 const COLORES_AVA = [['#8a5a3c', '#5b3a26'], ['#3d77a8', '#244a6b'], ['#3f8a5e', '#25563a'], ['#c08a3e', '#7f5718'], ['#a24c7c', '#66294b']];
+AVATARES.mclovin = AVATARES.vicente;
 function avatar(p) {
   const key = (p.usuario || p.nombre || '').toLowerCase().split(/\s/)[0];
   if (AVATARES[key]) return AVATARES[key];

@@ -36,6 +36,8 @@ VIEWS['almacen'] = async (v) => {
   v.innerHTML = `
     <div class="page-head"><div><h1>Almacén</h1><div class="muted small">${prods.length} productos${bajos.length ? ` · <span style="color:var(--warn)">${bajos.length} con poco stock</span>` : ''}${agotados.length ? ` · <span style="color:var(--err)">${agotados.length} sin stock</span>` : ''}</div></div>
       <div class="tools"><a class="btn btn-primary" href="#/entregar">☕ Producir y entregar</a></div></div>
+    <details class="card fold"><summary><h2 style="display:inline">Movimientos del almacén</h2> <span class="muted small">entradas, producción, merma, devoluciones</span></summary>
+      <div style="margin-top:12px">${rangoHTML('hoy')}</div><div id="movs"></div></details>
     ${adm ? `<div class="kpis kpis-g4 alm-kpis">
       ${kpi('Valor a costo', money0(total), 'lo que pagaste por lo que hay')}
       ${kpi('Valor al público', money0(pubMin), pubMax > pubMin + 1 ? `hasta <b>${money0(pubMax)}</b> si se vende en piezas o paquetes chicos` : 'precio de venta', { cls: 'hl' })}
@@ -69,8 +71,7 @@ VIEWS['almacen'] = async (v) => {
     }).join('')}</div></section>`).join('')}
     ${alm.empacado.length ? `<div class="card"><div class="card-head"><h2>📦 Piezas empacadas que regresaron</h2><a class="btn btn-sm" href="#/entregar?o=empacado">Entregar a vendedor</a></div>
       <div class="chips">${alm.empacado.map((e) => `<span class="chip chip-static"><b>${e.piezas}</b> × ${esc(e.descripcion)}</span>`).join('')}</div></div>` : ''}
-    <details class="card fold"><summary><h2 style="display:inline">Movimientos del almacén</h2> <span class="muted small">entradas, producción, merma, devoluciones</span></summary>
-      <div style="margin-top:12px">${rangoHTML('hoy')}</div><div id="movs"></div></details>`;
+`;
 
   const TIPOS = { entrada: ['Entrada', 'b-ok'], ajuste: ['Ajuste', 'b-warn'], retiro: ['A producción', 'b-info'], merma: ['Merma', 'b-err'], devolucion: ['Devolución', 'b-brand'], entrega_empacado: ['Entrega empacado', 'b-info'] };
   let movN = 0;

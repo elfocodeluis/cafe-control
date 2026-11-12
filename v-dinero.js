@@ -127,16 +127,20 @@ function graficaSerie(serie, r) {
 const hoyRango = rangoHoy;
 
 VIEWS['resumen'] = async (v) => {
-  v.innerHTML = `<div class="page-head"><div><span class="eyebrow"><span class="vivo"></span>En vivo · hoy</span><h1>Finanzas</h1><div class="muted small">${fechaDia(new Date().toISOString())}</div></div></div>
-    <div id="res"></div>
-    <div id="gastos-fin"></div>
-    <div class="ana-head" id="ana-h"><div><span class="eyebrow">Solo lectura</span><h1>Analítica</h1><div class="muted small">Semanas, meses y años que ya pasaron, para comparar</div></div><div class="tools">${rangoHTML('semana', true, { quick: RAPIDOS_ANA, analitica: true })}</div></div>
+  v.innerHTML = `<div class="page-head"><div><h1>Finanzas</h1><div class="muted small">${fechaDia(new Date().toISOString())}</div></div></div>
+    <div class="ana-head ana-top" id="ana-h"><div><span class="eyebrow">Solo lectura</span><h1>Analítica</h1><div class="muted small">Semanas, meses y años que ya pasaron, para comparar</div></div><div class="tools">${rangoHTML('semana', true, { quick: RAPIDOS_ANA, analitica: true })}</div></div>
     ${tabsHTML('ana', [['tend', 'Tendencia'], ['vend', 'Vendedores'], ['util', 'Utilidades']], 'tend')}
     <div data-panel="ana:tend"><div id="ana-t"></div></div>
     <div data-panel="ana:vend" hidden><div id="ana-p"></div></div>
-    <div data-panel="ana:util" hidden><div id="ana-v"></div></div>`;
+    <div data-panel="ana:util" hidden><div id="ana-v"></div></div>
+    <div class="sec-hoy"><span class="eyebrow"><span class="vivo"></span>En vivo · hoy</span></div>
+    <div id="res"></div>
+    <div id="gastos-fin"></div>
+    <div id="pagos-fin"></div>
+`;
   bindTabs(v, 'ana');
   tarjetaGastos($('#gastos-fin', v));
+  tarjetaPagos($('#pagos-fin', v));
 
   // ---------- HOY: operación ----------
   const r = hoyRango();
@@ -247,17 +251,21 @@ function bindMovs(box) {
 VIEWS['caja'] = async (v, q) => {
   const ACCIONES = [['deposito', '🏧', 'Depósito', 'efectivo de un vendedor'], ['pago_comision', '🎁', 'Pagar comisión', 'y extras de vendedores'], ['pago_envio', '📦', 'Pagar paquetería', 'envíos pendientes'],
     ['gasto', '🧾', 'Gasto', 'gasolina, bolsas…'], ['retiro_admin', '🏦', 'Préstamo / retiro', 'admin · sale del banco'], ['pago_proveedor', '🤝', 'Pagar proveedor', 'abonar a deuda'], ['ingreso', '➕', 'Otro ingreso', 'que no es venta'], ['ajuste', '⚖️', 'Ajuste', 'corregir saldo']];
-  v.innerHTML = `<div class="page-head"><div><span class="eyebrow"><span class="vivo"></span>En vivo · hoy</span><h1>Caja y banco</h1><div class="muted small">${fechaDia(new Date().toISOString())} · quién trae el efectivo, qué entró al banco y qué falta pagar</div></div></div>
+  v.innerHTML = `<div class="page-head"><div><h1>Caja y banco</h1><div class="muted small">${fechaDia(new Date().toISOString())} · quién trae el efectivo, qué entró al banco y qué falta pagar</div></div></div>
+    <div class="ana-head ana-top" id="hist-h"><div><span class="eyebrow">Solo lectura</span><h1>Historial</h1><div class="muted small">Días que ya pasaron, con el saldo acumulado del banco</div></div><div class="tools">${rangoHTML('semana', true, { quick: RAPIDOS_ANA, analitica: true })}</div></div>
+    <div id="hist"></div>
+    <div class="sec-hoy"><span class="eyebrow"><span class="vivo"></span>En vivo · hoy</span></div>
     <div class="acciones">${ACCIONES.map(([k, e, t, s]) => `<button type="button" class="tile tile-sm" data-op="${k}"><span class="tile-e">${e}</span><span class="tile-t">${t}</span><span class="tile-s">${s}</span></button>`).join('')}</div>
     <div id="cj"></div>
     <div id="gastos-cj"></div>
-    <div class="ana-head" id="hist-h"><div><span class="eyebrow">Solo lectura</span><h1>Historial</h1><div class="muted small">Días que ya pasaron, con el saldo acumulado del banco</div></div><div class="tools">${rangoHTML('semana', true, { quick: RAPIDOS_ANA, analitica: true })}</div></div>
-    <div id="hist"></div>`;
+    <div id="pagos-cj"></div>
+`;
   let d = null;
   let adminsCache = [];
 
   const load = async () => {
     tarjetaGastos($('#gastos-cj', v));
+    tarjetaPagos($('#pagos-cj', v));
     const r = hoyRango();
     let admins;
     [d, admins] = await Promise.all([API.rpc('tesoreria', { p_desde: r.desde, p_hasta: r.hasta }), API.rpc('retiros_admin', { p_desde: r.desde, p_hasta: r.hasta }).catch(() => [])]);
@@ -567,12 +575,14 @@ VIEWS['caja'] = async (v, q) => {
     const pinta = () => {
       const t = total(), x = g();
       $('#ptot', f).textContent = money0(t.tot);
+      // solo efectivo y no alcanza: se paga lo que trae (primero los envíos) y lo demás queda pendiente
       const sin = origen === 'caja' && t.tot > x.en_poder + 0.005;
+      const parcial = sin ? Math.round(x.en_poder * 100) / 100 : 0;
       mix = origen === 'mixto' ? mixPinta($('#pmix', f), t.tot, x.en_poder, x.nombre) : null;
-      $('#pgo', f).textContent = !t.tot ? 'Pagar' : mix && !mix.err ? `Pagar ${money0(t.tot)} (💵 ${money0(mix.ef)} + 🏦 ${money0(mix.resto)})` : `Pagar ${money0(t.tot)}`;
-      $('#pgo', f).disabled = !t.tot || sin || !!(mix && mix.err);
+      $('#pgo', f).textContent = !t.tot ? 'Pagar' : mix && !mix.err ? `Pagar ${money0(t.tot)} (💵 ${money0(mix.ef)} + 🏦 ${money0(mix.resto)})` : sin ? `Pagar ${money0(parcial)} de su efectivo` : `Pagar ${money0(t.tot)}`;
+      $('#pgo', f).disabled = !t.tot || (sin && parcial <= 0) || !!(mix && mix.err);
       $('#pwarn', f).hidden = !sin;
-      if (sin) $('#pwarn', f).innerHTML = `${esc(x.nombre)} solo trae ${money0(x.en_poder)} en efectivo. <button type="button" class="btn btn-sm" id="pamix">🔀 Usar sus ${money0(x.en_poder)} y el resto del banco</button>`;
+      if (sin) $('#pwarn', f).innerHTML = `${esc(x.nombre)} trae ${money0(x.en_poder)}: se pagan ${money0(parcial)} de su efectivo y quedan <b>${money0(t.tot - parcial)}</b> pendientes para después. <button type="button" class="btn btn-sm" id="pamix">🔀 Mejor pagar el resto del banco (mixto)</button>`;
       $('#pamix', f)?.addEventListener('click', () => ponOrigen('mixto', x.en_poder));
     };
     const ponOrigen = (o, ef) => {
@@ -592,7 +602,7 @@ VIEWS['caja'] = async (v, q) => {
       $('#porig', f).innerHTML = `<div class="pick-row" id="porow"><button type="button" class="pick ${origen === 'banco' ? 'on' : ''}" data-o="banco"><span class="mini-ava mini-of">🏦</span>Banco<small>${money0(d.banco)}</small></button>
         <button type="button" class="pick ${origen === 'caja' ? 'on' : ''}" data-o="caja" ${sinEf ? 'disabled' : ''}><span class="mini-ava">${avatar(x)}</span>De su efectivo<small>trae ${money0(x.en_poder)}</small></button>
         <button type="button" class="pick ${origen === 'mixto' ? 'on' : ''}" data-o="mixto" ${sinEf ? 'disabled' : ''}><span class="mini-ava mini-of">🔀</span>Mixto<small>efectivo + banco</small></button></div>
-        <div class="small" id="pwarn" style="color:var(--err);margin-top:8px" hidden></div>
+        <div class="small" id="pwarn" style="color:var(--warn);margin-top:8px" hidden></div>
         ${mixBox('pmix', x.en_poder < x.total ? x.en_poder : '')}`;
       const box = $('#pmix', f); box.hidden = origen !== 'mixto';
       $('[data-efmix]', box).addEventListener('input', pinta);
@@ -606,13 +616,17 @@ VIEWS['caja'] = async (v, q) => {
     render();
     f.addEventListener('submit', (e) => { e.preventDefault(); const t = total(); const ids = sel(); run($('#pgo', f), async () => {
       // cuánto efectivo va a los envíos y cuánto a la comisión (el efectivo se usa primero en los envíos)
-      const ef = origen === 'banco' ? 0 : origen === 'caja' ? t.tot : mix.ef;
+      const soloEf = origen === 'caja';
+      const ef = origen === 'banco' ? 0 : soloEf ? Math.min(t.tot, Math.round(g().en_poder * 100) / 100) : mix.ef;
       const efEnv = Math.min(ef, t.env), efCom = Math.round((ef - efEnv) * 100) / 100;
-      const como = (efx, monto) => (efx <= 0.005 ? ['banco', null] : efx >= monto - 0.005 ? ['caja', null] : ['mixto', efx]);
-      if (ids.length) { const [c, x] = como(efEnv, t.env); await API.rpc('pagar_paqueteria', { p_ventas_json: ids, p_cuenta: c, p_efectivo: x }); }
-      if (t.com > 0) {
-        const [c, x] = como(efCom, t.com);
-        try { await API.rpc('registrar_dinero', { p_tipo: 'pago_comision', p_cuenta: c, p_monto: t.com, p_concepto: null, p_vendedor: vend, p_efectivo: x }); }
+      // solo efectivo: lo que no alcance queda pendiente (no se toca el banco)
+      const como = (efx, monto) => (soloEf ? ['caja', efx >= monto - 0.005 ? null : efx] : efx <= 0.005 ? ['banco', null] : efx >= monto - 0.005 ? ['caja', null] : ['mixto', efx]);
+      const pagaEnv = ids.length && !(soloEf && efEnv <= 0.005);
+      const comMonto = soloEf ? efCom : t.com;
+      if (pagaEnv) { const [c, x] = como(efEnv, t.env); await API.rpc('pagar_paqueteria', { p_ventas_json: ids, p_cuenta: c, p_efectivo: x }); }
+      if (comMonto > 0.005) {
+        const [c] = como(efCom, t.com);
+        try { await API.rpc('registrar_dinero', { p_tipo: 'pago_comision', p_cuenta: c, p_monto: comMonto, p_concepto: null, p_vendedor: vend, p_efectivo: c === 'mixto' ? efCom : null }); }
         catch (err) {
           dlg.close(); load(); recargarHist();
           if (!ids.length) throw err;
@@ -694,10 +708,12 @@ VIEWS['caja'] = async (v, q) => {
       if (w) {
         w.hidden = !sin;
         if (sin) {
-          w.innerHTML = `${esc(vo.nombre)} solo trae ${money0(vo.en_poder)} en efectivo.${puedeMix ? ` <button type="button" class="btn btn-sm" id="damix">🔀 Usar sus ${money0(vo.en_poder)} y el resto del banco</button>` : ''}`;
+          w.innerHTML = `${esc(vo.nombre)} solo trae ${money0(vo.en_poder)} en efectivo. <button type="button" class="btn btn-sm" id="dsolo">💵 Pagar solo sus ${money0(vo.en_poder)}</button>${puedeMix ? ` <button type="button" class="btn btn-sm" id="damix">🔀 Sus ${money0(vo.en_poder)} y el resto del banco</button>` : ''}`;
+          $('#dsolo', dlg)?.addEventListener('click', () => { f.m.value = +vo.en_poder; pintaMix(); });
           $('#damix', dlg)?.addEventListener('click', () => { mixVend = vo.vendedor_id; ponOrigen('mixto', +vo.en_poder); });
         }
       }
+      btnG.disabled = sin;
       btnG.textContent = mix && !mix.err ? `Guardar (💵 ${money0(mix.ef)} + 🏦 ${money0(mix.resto)})` : 'Guardar';
     };
     const ponOrigen = (o, ef) => {
@@ -758,5 +774,8 @@ VIEWS['caja'] = async (v, q) => {
   const leerH = bindRango($('#hist-h', v), cargarHist);
   const recargarHist = () => cargarHist(leerH());
   recargarHist();
+  // al revertir un gasto desde el panel, se recalculan los saldos
+  const onRev = () => { if (!document.body.contains(v)) return document.removeEventListener('gasto-revertido', onRev); load(); recargarHist(); };
+  document.addEventListener('gasto-revertido', onRev);
   if (q.op && TIT[q.op]) formDinero(q.op, { vendedor: q.v, origen: q.o });
 };
