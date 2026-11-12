@@ -470,8 +470,9 @@ function rangoHTML(def = 'hoy', rapidos = true, opts = {}) {
   return `<div class="rango" data-rango>
     ${rapidos ? `<div class="seg seg-sm" data-r="quick">${quick.map(([k, l]) => `<button type="button" data-q="${k}" class="${k === def ? 'on' : ''}">${l}</button>`).join('')}</div>` : ''}
     <select data-r="sel" aria-label="Periodo">${lista.map(([k, l]) => `<option value="${k}" ${k === def ? 'selected' : ''}>${l}</option>`).join('')}</select>
-    <input type="date" data-r="d1" value="${hoy}" class="hidden">
-    <input type="date" data-r="d2" value="${hoy}" class="hidden">
+    <input type="date" data-r="d1" value="${opts.d1 || hoy}" class="${def === 'custom' ? '' : 'hidden'}">
+    <input type="date" data-r="d2" value="${opts.d2 || opts.d1 || hoy}" class="${def === 'custom' ? '' : 'hidden'}">
+    ${opts.cal ? `<label class="rango-cal" title="Ir a un día en específico"><span aria-hidden="true">📅</span><span class="rango-cal-t">Ir a un día</span><input type="date" data-r="cal" max="${hoy}" aria-label="Ir a un día en específico"></label>` : ''}
   </div>`;
 }
 function leerRango(root) {
@@ -497,19 +498,37 @@ function leerRango(root) {
     }
     default: a = hoy; b = masDias(hoy, 1);
   }
-  const et = RANGOS.find((r) => r[0] === sel)[1];
-  return { clave: sel, desde: isoMX(a), hasta: isoMX(b), etiqueta: et, hoy: sel === 'hoy' };
+  let et = RANGOS.find((r) => r[0] === sel)[1];
+  // un día o fechas elegidas: la etiqueta dice qué fechas son
+  if (sel === 'custom') {
+    const fc = (x) => new Date(x + 'T12:00:00Z').toLocaleDateString('es-MX', { timeZone: 'UTC', weekday: 'short', day: 'numeric', month: 'short' });
+    const ult = masDias(b, -1);
+    et = a === ult ? (a === hoy ? 'Hoy' : a === masDias(hoy, -1) ? 'Ayer' : fc(a)) : `${fc(a)} – ${fc(ult)}`;
+    if (a === ult && a === hoy) return { clave: 'hoy', desde: isoMX(a), hasta: isoMX(b), etiqueta: 'Hoy', hoy: true, dia: a };
+  }
+  return { clave: sel, desde: isoMX(a), hasta: isoMX(b), etiqueta: et, hoy: sel === 'hoy', dia: masDias(b, -1) === a ? a : null };
 }
 function bindRango(root, cb) {
   const box = root.matches?.('[data-rango]') ? root : $('[data-rango]', root);
   const sel = $('[data-r=sel]', box);
+  const fechas = $$('[data-r=d1], [data-r=d2]', box);
   const sync = () => {
-    $$('input', box).forEach((i) => i.classList.toggle('hidden', sel.value !== 'custom'));
+    fechas.forEach((i) => i.classList.toggle('hidden', sel.value !== 'custom'));
     $$('[data-q]', box).forEach((b) => b.classList.toggle('on', b.dataset.q === sel.value));
   };
   sel.addEventListener('change', () => { sync(); cb(leerRango(box)); });
   $$('[data-q]', box).forEach((b) => b.addEventListener('click', () => { sel.value = b.dataset.q; sync(); cb(leerRango(box)); }));
-  $$('input', box).forEach((i) => i.addEventListener('change', () => cb(leerRango(box))));
+  fechas.forEach((i) => i.addEventListener('change', () => cb(leerRango(box))));
+  // 📅 Ir a un día: abre el calendario y muestra solo ese día
+  const cal = $('[data-r=cal]', box);
+  if (cal) {
+    cal.addEventListener('click', () => { try { cal.showPicker(); } catch (e) { /* el navegador lo abre solo */ } });
+    cal.addEventListener('change', () => {
+      if (!cal.value) return;
+      sel.value = 'custom'; fechas.forEach((i) => { i.value = cal.value; });
+      sync(); cb(leerRango(box));
+    });
+  }
   return () => leerRango(box);
 }
 

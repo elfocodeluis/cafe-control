@@ -1,10 +1,10 @@
 /* ---------- Panel de gastos: quién lo registró, de dónde salió y si ya está confirmado ----------
    Se usa en Finanzas y en Caja y banco: tarjetaGastos(contenedor, 'semana') */
-async function tarjetaGastos(box, def = 'semana') {
+async function tarjetaGastos(box, def = 'semana', dias = {}) {
   if (!box) return;
   let lista = [], filtro = 'todos', quien = '', rg = null, n = 0;
   box.innerHTML = `<div class="card gx"><div class="card-head"><h2>🧾 Gastos operativos <span class="muted small" data-gx-per></span></h2>
-      <div class="tools">${rangoHTML(def, true, { quick: [['hoy', 'Hoy'], ['semana', 'Semana'], ['mes', 'Mes']] })}
+      <div class="tools">${rangoHTML(def, true, { quick: [['hoy', 'Hoy'], ['semana', 'Semana'], ['mes', 'Mes']], ...dias })}
       <a class="btn btn-sm btn-primary" href="#/caja?op=gasto">+ Gasto</a></div></div>
     <div data-gx></div></div>`;
   const cuerpo = $('[data-gx]', box);

@@ -4,11 +4,11 @@
    · Pagos hechos en el periodo: a quién, de dónde salió (efectivo / banco / mixto), quién lo registró y si ya está confirmado.
    Un pago mixto o de varios envíos se muestra como UN solo pago con sus partes.
    Se usa en Finanzas y en Caja y banco: tarjetaPagos(contenedor, 'semana') */
-async function tarjetaPagos(box, def = 'semana') {
+async function tarjetaPagos(box, def = 'semana', dias = {}) {
   if (!box) return;
   let pagos = [], debe = { comisiones: [], paqueteria: [] }, tipoF = 'todos', estado = 'todos', quien = '', rg = null, n = 0;
   box.innerHTML = `<div class="card gx px"><div class="card-head"><h2>💸 Comisiones y paquetería <span class="muted small" data-px-per></span></h2>
-      <div class="tools">${rangoHTML(def, true, { quick: [['hoy', 'Hoy'], ['semana', 'Semana'], ['mes', 'Mes']] })}</div></div>
+      <div class="tools">${rangoHTML(def, true, { quick: [['hoy', 'Hoy'], ['semana', 'Semana'], ['mes', 'Mes']], ...dias })}</div></div>
     <div data-px></div></div>`;
   const cuerpo = $('[data-px]', box);
   const suma = (xs) => xs.reduce((s, g) => s + +g.total, 0);

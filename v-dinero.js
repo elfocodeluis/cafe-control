@@ -126,100 +126,125 @@ function graficaSerie(serie, r) {
 
 const hoyRango = rangoHoy;
 
+// Fechas de un periodo para mostrarlas: "9 – 15 nov"
+const fechasRango = (r) => {
+  const fc = (x) => new Date(x).toLocaleDateString('es-MX', { timeZone: TZ, day: 'numeric', month: 'short' });
+  const a = r.desde, b = new Date(new Date(r.hasta) - 1).toISOString();
+  if (r.clave === 'todo') return 'desde el inicio';
+  return diaMX(new Date(a)) === diaMX(new Date(b)) ? fechaDia(new Date(new Date(a).getTime() + 12 * 36e5).toISOString()) : `${fc(a)} – ${fc(b)}`;
+};
+// "hoy" / "esta semana" / "el mié 5 nov" para usar dentro de una frase
+const perTxt = (r) => (r.hoy ? 'hoy' : r.clave === 'custom' ? (r.dia ? `el ${r.etiqueta}` : `del ${r.etiqueta}`) : r.etiqueta.toLowerCase());
+
 VIEWS['resumen'] = async (v) => {
-  v.innerHTML = `<div class="page-head"><div><h1>Finanzas</h1><div class="muted small">${fechaDia(new Date().toISOString())}</div></div></div>
-    <div class="ana-head ana-top" id="ana-h"><div><span class="eyebrow">Solo lectura</span><h1>Analítica</h1><div class="muted small">Semanas, meses y años que ya pasaron, para comparar</div></div><div class="tools">${rangoHTML('semana', true, { quick: RAPIDOS_ANA, analitica: true })}</div></div>
-    ${tabsHTML('ana', [['tend', 'Tendencia'], ['vend', 'Vendedores'], ['util', 'Utilidades']], 'tend')}
+  // Un solo selector de periodo arriba: todo el tablero (tarjetas, utilidades, gráficas y paneles) sigue ese periodo
+  v.innerHTML = `<div class="fin-head" id="fin-h"><div><h1>Finanzas</h1><div class="muted small">${fechaDia(new Date().toISOString())}</div></div>
+      <div class="tools">${rangoHTML('hoy', true, { quick: [['hoy', 'Hoy'], ['semana', 'Semana'], ['mes', 'Mes'], ['anio', 'Año']], cal: true })}</div></div>
+    <div class="fin-per" id="fin-per"></div>
+    <div id="res"></div>
+    <div class="ana-head" id="ana-h"><div><span class="eyebrow">Tendencia</span><h1 id="ana-tit">Analítica</h1><div class="muted small" id="ana-sub"></div></div></div>
+    ${tabsHTML('ana', [['tend', 'Ventas y banco'], ['vend', 'Vendedores']], 'tend')}
     <div data-panel="ana:tend"><div id="ana-t"></div></div>
     <div data-panel="ana:vend" hidden><div id="ana-p"></div></div>
-    <div data-panel="ana:util" hidden><div id="ana-v"></div></div>
-    <div class="sec-hoy"><span class="eyebrow"><span class="vivo"></span>En vivo · hoy</span></div>
-    <div id="res"></div>
     <div id="gastos-fin"></div>
     <div id="pagos-fin"></div>
 `;
   bindTabs(v, 'ana');
-  tarjetaGastos($('#gastos-fin', v));
-  tarjetaPagos($('#pagos-fin', v));
+  let tabFin = 'ventas', n = 0, pend = null;
 
-  // ---------- HOY: operación ----------
-  const r = hoyRango();
-  const [d, pend] = await Promise.all([
-    API.rpc('resumen', { p_desde: r.desde, p_hasta: r.hasta }),
-    API.rpc('ventas_de', { p_desde: r.desde, p_hasta: r.hasta, p_pendientes: true }),
-  ]);
-  const di = d.dinero, inv = d.inventario, pv = d.por_vendedor, bp = di.banco_periodo, vt = d.ventas;
-  const box = $('#res', v);
-  const netoBanco = +bp.final - +bp.inicial;
-  const u = utilidades(d);
-  const porPagar = +di.por_pagar_comisiones + +di.por_pagar_paqueteria;
-  const pendientes = [
-    di.por_verificar_num && ['⏳', `${di.por_verificar_num} ${di.por_verificar_num === 1 ? 'transferencia' : 'transferencias'} por verificar`, di.por_verificar, '#/ventas?pend=1'],
-    porPagar && ['🧾', 'Por pagar: comisiones y paquetería', porPagar, '#/caja?ir=porpagar'],
-    +d.deuda && ['🤝', 'Debemos a proveedores', d.deuda, '#/caja?ir=deudas'],
-  ].filter(Boolean);
-  box.innerHTML = `
+  const cargar = async (r) => {
+    const yo = ++n;
+    const per = perTxt(r);
+    $('#fin-per', v).innerHTML = r.hoy
+      ? '<span class="eyebrow"><span class="vivo"></span>En vivo · hoy</span>'
+      : `<span class="eyebrow">📊 ${esc(r.etiqueta)}</span><small>${esc(fechasRango(r))}</small><button type="button" class="btn btn-sm btn-ghost" data-ir-hoy>Volver a hoy</button>`;
+    $('[data-ir-hoy]', v)?.addEventListener('click', () => $('#fin-h [data-q=hoy]', v).click());
+    $('#res', v).classList.add('cargando');
+    // la gráfica de un solo día se ve mejor con los 14 días anteriores
+    const dia = r.hoy ? diaMX() : r.dia;
+    const rs = dia ? { clave: 'custom', desde: isoMX(masDias(dia, -13)), hasta: isoMX(masDias(dia, 1)), etiqueta: 'Últimos 14 días' } : r;
+    const [d, serie] = await Promise.all([
+      API.rpc('resumen', { p_desde: r.desde, p_hasta: r.hasta }),
+      dia ? API.rpc('resumen', { p_desde: rs.desde, p_hasta: rs.hasta }) : null,
+      pend ? null : API.rpc('ventas_de', { p_desde: '2000-01-01', p_hasta: '2100-01-01', p_pendientes: true }).then((x) => { pend = x; }),
+    ]).catch((e) => { toast(e.message, true); return []; });
+    if (yo !== n || !d) return;
+    $('#res', v).classList.remove('cargando');
+    const di = d.dinero, inv = d.inventario, pv = d.por_vendedor, bp = di.banco_periodo, vt = d.ventas;
+    const box = $('#res', v);
+    const netoBanco = +bp.final - +bp.inicial;
+    const u = utilidades(d);
+    const porPagar = +di.por_pagar_comisiones + +di.por_pagar_paqueteria;
+    const pendientes = [
+      di.por_verificar_num && ['⏳', `${di.por_verificar_num} ${di.por_verificar_num === 1 ? 'transferencia' : 'transferencias'} por verificar`, di.por_verificar, '#/ventas?pend=1'],
+      porPagar && ['🧾', 'Por pagar: comisiones y paquetería', porPagar, '#/caja?ir=porpagar'],
+      +d.deuda && ['🤝', 'Debemos a proveedores', d.deuda, '#/caja?ir=deudas'],
+    ].filter(Boolean);
+    const tit = (l) => (r.hoy ? `${l} hoy` : `${l} · ${r.etiqueta}`);
+    box.innerHTML = `
     <div class="hero">
-      <a class="hero-k hl" href="#/ventas"><span class="hk-l">Ventas de hoy</span><b>${cuenta(vt.total)}</b><span class="hk-s">${vt.num} ${vt.num === 1 ? 'venta' : 'ventas'} · ${fnum(d.piezas)} piezas</span>${barra2(vt.efectivo, vt.transferencia)}</a>
-      <div class="hero-k ${u.neta < 0 ? 'bad' : ''}"><span class="hk-l">Utilidad neta</span><b>${cuenta(u.neta)}</b><span class="hk-s">bruta ${money0(u.bruta)} · margen ${fnum(u.margen, 1)}%</span></div>
-      <a class="hero-k" href="#/caja"><span class="hk-l">Efectivo con vendedores</span><b>${cuenta(di.caja)}</b><span class="hk-s">hasta que lo depositen al banco</span>${desglose(pv.filter((p) => +p.en_poder).map((p) => ({ ...p, monto: p.en_poder })))}</a>
-      <a class="hero-k ${netoBanco < 0 ? 'bad' : ''}" href="#/caja"><span class="hk-l">Banco hoy</span><b>${cuenta(netoBanco)}</b><span class="hk-s">entró ${money0(bancoEntro(bp))} · salió ${money0(bancoSalio(bp))}</span></a>
+      <a class="hero-k hl" href="#/ventas"><span class="hk-l">${r.hoy ? 'Ventas de hoy' : tit('Ventas')}</span><b>${cuenta(vt.total)}</b><span class="hk-s">${vt.num} ${vt.num === 1 ? 'venta' : 'ventas'} · ${fnum(d.piezas)} piezas</span>${barra2(vt.efectivo, vt.transferencia)}</a>
+      <div class="hero-k ${u.neta < 0 ? 'bad' : ''}"><span class="hk-l">${r.hoy ? 'Utilidad neta' : tit('Utilidad neta')}</span><b>${cuenta(u.neta)}</b><span class="hk-s">bruta ${money0(u.bruta)} · margen ${fnum(u.margen, 1)}%</span></div>
+      <a class="hero-k" href="#/caja"><span class="hk-l">Efectivo con vendedores</span><b>${cuenta(di.caja)}</b><span class="hk-s">ahora · hasta que lo depositen al banco</span>${desglose(pv.filter((p) => +p.en_poder).map((p) => ({ ...p, monto: p.en_poder })))}</a>
+      <a class="hero-k ${netoBanco < 0 ? 'bad' : ''}" href="#/caja"><span class="hk-l">${tit('Banco')}</span><b>${cuenta(netoBanco)}</b><span class="hk-s">entró ${money0(bancoEntro(bp))} · salió ${money0(bancoSalio(bp))}<br>saldo total ahora <b class="${+di.banco < 0 ? 'neg-t' : ''}">${money0(di.banco)}</b></span></a>
     </div>
     <div class="pend">${pendientes.length ? pendientes.map(([e, t, m, h]) => `<a class="pend-i" href="${h}"><span class="pend-e">${e}</span><span>${t}</span><b>${money0(m)}</b><span class="go">›</span></a>`).join('')
       : '<div class="pend-ok"><span class="foco foco-ok"></span> Todo en orden: nada por verificar, nada por pagar.</div>'}</div>
-    ${tabsHTML('fin', [['ventas', 'Ventas y utilidad'], ['dinero', 'Dinero'], ['inv', 'Inventario']], 'ventas')}
-    <div data-panel="fin:ventas"><div id="hoy-v"></div></div>
-    <div data-panel="fin:dinero" hidden>
+    ${tabsHTML('fin', [['ventas', 'Ventas y utilidad'], ['dinero', 'Dinero'], ['inv', 'Inventario']], tabFin)}
+    <div data-panel="fin:ventas" ${tabFin === 'ventas' ? '' : 'hidden'}><div id="hoy-v"></div></div>
+    <div data-panel="fin:dinero" ${tabFin === 'dinero' ? '' : 'hidden'}>
     <div class="kpis kpis-g3">
-      ${kpi('Efectivo', cuenta(di.caja), 'Cobros en efectivo que traen los vendedores hasta que los depositan', { cls: 'hl', href: '#/caja', det: desglose(pv.map((p) => ({ ...p, monto: p.en_poder }))) })}
-      ${kpi('Banco hoy', cuenta(netoBanco), `entró ${money0(bancoEntro(bp))} · salió ${money0(bancoSalio(bp))}`, { href: '#/caja', cls: netoBanco < 0 ? 'bad' : '', info: 'Lo que se movió hoy en el banco: transferencias de ventas de los clientes y depósitos de efectivo (retiro de caja de los vendedores), menos pagos y gastos de hoy. El saldo acumulado está en Analítica.',
+      ${kpi('Efectivo', cuenta(di.caja), 'Ahora: cobros en efectivo que traen los vendedores hasta que los depositan', { cls: 'hl', href: '#/caja', det: desglose(pv.map((p) => ({ ...p, monto: p.en_poder }))) })}
+      ${kpi(tit('Banco'), cuenta(netoBanco), `entró ${money0(bancoEntro(bp))} · salió ${money0(bancoSalio(bp))}`, { href: '#/caja', cls: netoBanco < 0 ? 'bad' : '', info: `Lo que se movió ${per} en el banco: transferencias de ventas y depósitos de efectivo, menos pagos y gastos. El saldo con el que empezó y terminó está abajo, en Tendencia.`,
         det: bancoCuadre(bp, r, false) })}
-      ${kpi('Transferencias hoy', cuenta(vt.transferencia), `${pv.reduce((s, p) => s + p.transf_num, 0)} ventas pagadas directo al banco por clientes`, { href: '#/ventas', info: 'Ventas que el cliente pagó por transferencia a la cuenta del banco, a través de cada vendedor. Son distintas a los depósitos de efectivo.',
+      ${kpi(tit('Transferencias'), cuenta(vt.transferencia), `${pv.reduce((s, p) => s + p.transf_num, 0)} ventas pagadas directo al banco por clientes`, { href: '#/ventas', info: 'Ventas que el cliente pagó por transferencia a la cuenta del banco, a través de cada vendedor. Son distintas a los depósitos de efectivo.',
         cls: +vt.transferencia_pendiente ? 'warn' : '',
-        det: pv.filter((p) => p.transf_num).map((p) => `<div class="pv-i"><span><span class="mini-ava">${avatar(p)}</span>${esc(p.nombre)} <span class="muted">· ${p.transf_num} ${p.transf_num === 1 ? 'venta' : 'ventas'}</span></span><b>${money0(p.transferencia)} ${p.transf_pend_num ? `<span class="foco foco-am" title="${p.transf_pend_num} por verificar"></span>` : '<span class="foco foco-ok" title="verificadas"></span>'}</b></div>`).join('') || '<div class="small muted">Sin transferencias hoy</div>' })}
-      ${kpi('Por pagar', cuenta(porPagar), porPagar ? 'Comisiones, extras de vendedores y paquetería' : 'Todo pagado ✓',
+        det: pv.filter((p) => p.transf_num).map((p) => `<div class="pv-i"><span><span class="mini-ava">${avatar(p)}</span>${esc(p.nombre)} <span class="muted">· ${p.transf_num} ${p.transf_num === 1 ? 'venta' : 'ventas'}</span></span><b>${money0(p.transferencia)} ${p.transf_pend_num ? `<span class="foco foco-am" title="${p.transf_pend_num} por verificar"></span>` : '<span class="foco foco-ok" title="verificadas"></span>'}</b></div>`).join('') || `<div class="small muted">Sin transferencias ${esc(per)}</div>` })}
+      ${kpi('Por pagar', cuenta(porPagar), porPagar ? 'Ahora: comisiones, extras de vendedores y paquetería' : 'Todo pagado ✓',
         { href: '#/caja?ir=porpagar', cls: porPagar ? 'warn' : '', info: 'Las ventas por transferencia caen completas al banco: ahí se le debe la comisión al vendedor y el envío a la paquetería.',
           det: [...pv.filter((p) => +p.comision_pendiente > 0).map((p) => `<div class="pv-i"><span>Comisión${+p.extra ? ' + extras' : ''} ${esc(p.nombre)}</span><b>${money0(p.comision_pendiente)}</b></div>`),
             +di.por_pagar_paqueteria ? `<div class="pv-i"><span>Paquetería</span><b>${money0(di.por_pagar_paqueteria)}</b></div>` : ''].join('') })}
       ${kpi('Por verificar', cuenta(di.por_verificar), di.por_verificar_num ? `${di.por_verificar_num} transferencias que aún no confirmas en tu banca` : 'Todas las transferencias están confirmadas ✓',
         { cls: di.por_verificar_num ? 'warn' : '', href: '#/ventas?pend=1', info: 'Transferencias que un vendedor registró pero que todavía no revisas en tu banco. No cuentan en Banco hasta que las marques.',
-          det: pend.slice(0, 3).map((x) => `<div class="pv-i"><span>${esc(x.cliente)} <span class="muted">· ${esc(x.vendedor)}</span></span><b>${money0(x.total)}</b></div>`).join('') + (pend.length > 3 ? `<div class="small muted">y ${pend.length - 3} más…</div>` : '') })}
+          det: (pend || []).slice(0, 3).map((x) => `<div class="pv-i"><span>${esc(x.cliente)} <span class="muted">· ${esc(x.vendedor)}</span></span><b>${money0(x.total)}</b></div>`).join('') + ((pend || []).length > 3 ? `<div class="small muted">y ${pend.length - 3} más…</div>` : '') })}
       ${kpi('Debemos a proveedores', cuenta(d.deuda), +d.deuda ? 'Mercancía a consignación o a crédito' : 'Sin deudas 🎉', { href: '#/caja?ir=deudas', cls: +d.deuda ? 'warn' : '' })}
     </div></div>
-    <div data-panel="fin:inv" hidden>
+    <div data-panel="fin:inv" ${tabFin === 'inv' ? '' : 'hidden'}>
+    <div class="small muted" style="margin-bottom:10px">El inventario es lo que hay ahora, no depende del periodo.</div>
     <div class="kpis kpis-g3">
       ${kpi('En almacén', cuenta(inv.almacen), 'Café a granel, cápsulas y filtros (a costo)', { href: '#/almacen' })}
       ${kpi('En manos de vendedores', cuenta(inv.vendedores_publico), `valor al público · a costo ${money0(inv.vendedores)}`, { det: desglose(pv.filter((p) => +p.inventario_publico).map((p) => ({ ...p, monto: p.inventario_publico }))) })}
       ${kpi('Empacado devuelto', cuenta(inv.empacado_publico), `piezas ya empacadas que regresaron · a costo ${money0(inv.empacado)}`)}
     </div></div>`;
-  bindTabs(box, 'fin');
-  bloqueVentas($('#hoy-v', box), d, r);
-  animarNumeros(box);
+    bindTabs(box, 'fin', { recordar: false, alCambiar: (k) => { tabFin = k; } });
+    bloqueVentas($('#hoy-v', box), d, r);
 
-  // ---------- ANALÍTICA: días pasados y acumulados ----------
-  let anaN = 0;
-  const cargarAna = async (ra) => {
-    const yo = ++anaN;
-    const a = await API.rpc('resumen', { p_desde: ra.desde, p_hasta: ra.hasta });
-    if (yo !== anaN) return; // llegó una respuesta vieja: la nueva manda
-    const ab = a.dinero.banco_periodo;
-    const porV = ab.por_vendedor;
+    // ---------- Tendencia (abajo): gráfica de ventas y cuadre del banco del mismo periodo ----------
+    const s = serie || d;
+    $('#ana-tit', v).textContent = `Analítica · ${r.etiqueta}`;
+    $('#ana-sub', v).textContent = dia ? `Ventas de los 14 días hasta ${r.hoy ? 'hoy' : r.etiqueta} y el banco ${per}` : `Ventas por ${(new Date(r.hasta) - new Date(r.desde)) / 864e5 > 62 || r.clave === 'todo' ? 'mes' : 'día'} y el banco ${per}`;
+    const porV = bp.por_vendedor || [];
     $('#ana-t', v).innerHTML = `
       <div class="grid2">
-        <div class="card"><div class="card-head"><h2>Ventas · ${esc(ra.etiqueta)}</h2><span class="muted small">${a.ventas.num} ventas · ${money0(a.ventas.total)}</span></div>${graficaSerie(a.serie, ra)}</div>
-        <div class="card"><div class="card-head"><h2>Banco · ${esc(ra.etiqueta)}</h2><span class="muted small">saldo total hoy <b class="${+di.banco < 0 ? 'neg-t' : ''}">${money0(di.banco)}</b></span></div>
-          ${bancoCuadre(ab, ra, true)}</div>
+        <div class="card"><div class="card-head"><h2>Ventas · ${esc(rs.etiqueta)}</h2><span class="muted small">${s.ventas.num} ventas · ${money0(s.ventas.total)}</span></div>${graficaSerie(s.serie, rs)}</div>
+        <div class="card"><div class="card-head"><h2>${esc(tit('Banco'))}</h2><span class="muted small">saldo total ahora <b class="${+di.banco < 0 ? 'neg-t' : ''}">${money0(di.banco)}</b></span></div>
+          ${bancoCuadre(bp, r, true)}</div>
       </div>`;
     $('#ana-p', v).innerHTML = `
-      <div class="card"><div class="card-head"><h2>Por vendedor · ${esc(ra.etiqueta)}</h2></div>
-        <div class="tbl-wrap"><table class="tbl"><thead><tr><th>Vendedor</th><th class="num">Ventas</th><th class="num">Efectivo</th><th class="num">🔁 Transf. de ventas</th><th class="num">🏧 Depósitos de efectivo</th><th class="num">Comisión</th><th class="num">Utilidad bruta</th></tr></thead><tbody>
-          ${a.por_vendedor.map((p) => { const b = porV.find((x) => x.vendedor_id === p.vendedor_id) || {}; const ub = p.total - p.costo; return `<tr><td><span class="mini-ava">${avatar(p)}</span> <b>${esc(p.nombre)}</b></td><td class="num">${money0(p.total)}<div class="small muted">${p.num} · ${fnum(p.piezas)} pz</div></td><td class="num">${money0(p.efectivo)}<div class="small muted">${p.efectivo_num}</div></td><td class="num">${money0(p.transferencia)}<div class="small muted">${p.transf_num}</div></td><td class="num">${money0(b.depositos || 0)}<div class="small muted">${b.dep_num || 0}</div></td><td class="num">${money0(p.comision)}</td><td class="num"><b>${money0(ub)}</b></td></tr>`; }).join('')}
-        </tbody></table></div></div>`;
-    bloqueVentas($('#ana-v', v), a, ra);
+      <div class="card"><div class="card-head"><h2>Por vendedor · ${esc(r.etiqueta)}</h2></div>
+        ${d.por_vendedor.length ? `<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Vendedor</th><th class="num">Ventas</th><th class="num">Efectivo</th><th class="num">🔁 Transf. de ventas</th><th class="num">🏧 Depósitos de efectivo</th><th class="num">Comisión</th><th class="num">Utilidad bruta</th></tr></thead><tbody>
+          ${d.por_vendedor.map((p) => { const b = porV.find((x) => x.vendedor_id === p.vendedor_id) || {}; const ub = p.total - p.costo; return `<tr><td><span class="mini-ava">${avatar(p)}</span> <b>${esc(p.nombre)}</b></td><td class="num">${money0(p.total)}<div class="small muted">${p.num} · ${fnum(p.piezas)} pz</div></td><td class="num">${money0(p.efectivo)}<div class="small muted">${p.efectivo_num}</div></td><td class="num">${money0(p.transferencia)}<div class="small muted">${p.transf_num}</div></td><td class="num">${money0(b.depositos || 0)}<div class="small muted">${b.dep_num || 0}</div></td><td class="num">${money0(p.comision)}</td><td class="num"><b>${money0(ub)}</b></td></tr>`; }).join('')}
+        </tbody></table></div>` : `<div class="empty">Sin ventas ${esc(per)}</div>`}</div>`;
     animarNumeros(v);
+
+    // Gastos y pagos con el mismo periodo
+    const clave = ['hoy', 'semana', 'mes', 'anio', 'ayer', 'sem_ant', 'mes_ant', 'todo'].includes(r.clave) ? r.clave : 'custom';
+    const dias = clave === 'custom' ? { d1: diaMX(new Date(r.desde)), d2: diaMX(new Date(new Date(r.hasta) - 1)) } : {};
+    tarjetaGastos($('#gastos-fin', v), clave, dias);
+    tarjetaPagos($('#pagos-fin', v), clave, dias);
   };
-  const leerAna = bindRango($('#ana-h', v), cargarAna);
-  await cargarAna(leerAna());
+  const leer = bindRango($('#fin-h', v), cargar);
+  await cargar(leer());
 };
 
 // Tabla de movimientos de dinero con filtros (Todo / Banco / Efectivo / Pagos)
@@ -252,7 +277,7 @@ VIEWS['caja'] = async (v, q) => {
   const ACCIONES = [['deposito', '🏧', 'Depósito', 'efectivo de un vendedor'], ['pago_comision', '🎁', 'Pagar comisión', 'y extras de vendedores'], ['pago_envio', '📦', 'Pagar paquetería', 'envíos pendientes'],
     ['gasto', '🧾', 'Gasto', 'gasolina, bolsas…'], ['retiro_admin', '🏦', 'Préstamo / retiro', 'admin · sale del banco'], ['pago_proveedor', '🤝', 'Pagar proveedor', 'abonar a deuda'], ['ingreso', '➕', 'Otro ingreso', 'que no es venta'], ['ajuste', '⚖️', 'Ajuste', 'corregir saldo']];
   v.innerHTML = `<div class="page-head"><div><h1>Caja y banco</h1><div class="muted small">${fechaDia(new Date().toISOString())} · quién trae el efectivo, qué entró al banco y qué falta pagar</div></div></div>
-    <div class="ana-head ana-top" id="hist-h"><div><span class="eyebrow">Solo lectura</span><h1>Historial</h1><div class="muted small">Días que ya pasaron, con el saldo acumulado del banco</div></div><div class="tools">${rangoHTML('semana', true, { quick: RAPIDOS_ANA, analitica: true })}</div></div>
+    <div class="ana-head ana-top" id="hist-h"><div><span class="eyebrow">Solo lectura</span><h1>Historial</h1><div class="muted small">Días que ya pasaron, con el saldo acumulado del banco</div></div><div class="tools">${rangoHTML('semana', true, { quick: RAPIDOS_ANA, analitica: true, cal: true })}</div></div>
     <div id="hist"></div>
     <div class="sec-hoy"><span class="eyebrow"><span class="vivo"></span>En vivo · hoy</span></div>
     <div class="acciones">${ACCIONES.map(([k, e, t, s]) => `<button type="button" class="tile tile-sm" data-op="${k}"><span class="tile-e">${e}</span><span class="tile-t">${t}</span><span class="tile-s">${s}</span></button>`).join('')}</div>
