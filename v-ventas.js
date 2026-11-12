@@ -54,7 +54,7 @@ VIEWS['ventas'] = async (v, q) => {
   const total = () => productos() - descuento() + envio();
 
   v.innerHTML = `
-    <div class="page-head"><div><h1>${admin ? 'Ventas' : 'Vender'}</h1><div class="muted small">${fechaDia(new Date().toISOString())}</div></div>
+    <div class="page-head"><div><h1>${admin ? 'Ventas' : 'Vender'}</h1><div class="muted small">${hoyTxt()}</div></div>
       <div class="tools">${rangoHTML('hoy')}</div></div>
     ${admin ? `<div class="ava-row" id="avas">${vendedores.map((x) => `
       <button type="button" class="ava-pick ${x.id === vendId ? 'on' : ''}" data-v="${x.id}">
@@ -122,7 +122,7 @@ VIEWS['ventas'] = async (v, q) => {
         <div class="${hayTr() ? '' : 'hidden'}" id="trbox">
           <button type="button" class="extra-btn ${extraN() ? 'on' : ''}" id="extrabtn" aria-expanded="${extraAbierto || !!extraN()}">
             <span class="extra-e">🎁</span>
-            <span class="extra-t"><b>Servicio extra transferido</b><small id="extrasub">${extraSub()}</small></span>
+            <span class="extra-t"><b>Propina para el vendedor</b><small id="extrasub">${extraSub()}</small></span>
             <span class="extra-v" id="extraval">${extraN() ? '+' + money0(extraN()) : '+'}</span>
           </button>
           <div class="extra-box ${extraAbierto || extraN() ? '' : 'hidden'}" id="extrabox">
@@ -402,11 +402,9 @@ VIEWS['ventas'] = async (v, q) => {
     const t = total();
     const ef = efectivoN(t), ex = extraN();
     if (metodo === 'mixto' && !(ef > 0 && ef < t)) { $('#efmix', v).focus(); return toast(`Escribe cuánto pagó en efectivo (menos de ${money0(t)})`, true); }
-    let verificarYa = false;
     if (hayTr()) {
       const r = await alertaTransferencia(t - ef + ex, cliente, ex);
       if (!r) return;
-      verificarYa = r === 'verificada';
     }
     let r = null;
     await run(btn, async () => {
@@ -423,13 +421,8 @@ VIEWS['ventas'] = async (v, q) => {
     // la venta ya existe: se limpia el carrito pase lo que pase con la verificación
     const eraTransf = hayTr();
     cart = []; metodo = ''; ajuste.valor = ''; tipo = 'local'; munId = null; limpiarForm = true; efMix = ''; extra = ''; extraAbierto = false;
-    let verifOk = !verificarYa;
-    if (verificarYa) {
-      try { await API.rpc('verificar_transferencia', { p_venta: r.venta_id, p_verificada: true }); verifOk = true; }
-      catch { toast(`Venta ${folio(r.venta_id)} registrada, pero no se pudo marcar verificada. Verifícala en Pedidos.`, true); }
-    }
     FX.fiesta();
-    if (verifOk) toast(`Venta ${folio(r.venta_id)} registrada: ${money(r.total)}${eraTransf && !verificarYa ? ' · transferencia por verificar' : ''}`);
+    toast(`Venta ${folio(r.venta_id)} registrada: ${money(r.total)}${eraTransf ? ' · transferencia por verificar' : ''}`);
     API.rpc('clientes_lista').then((c) => { clientes = c; }).catch(() => {});
     await cargarTodo();
   }
@@ -441,19 +434,17 @@ VIEWS['ventas'] = async (v, q) => {
         <p>Abre tu <b>banca móvil</b> y confirma que llegó la transferencia de <b>${money(monto)}</b> de <b>${esc(cliente)}</b>.</p>
         ${ex ? `<p class="small">Incluye <b>${money(ex)}</b> de extra (propina / servicio) para ${admin ? esc(vend().nombre) : 'ti'}.</p>` : ''}
         <ul class="small muted"><li>No te fíes de capturas de pantalla: revisa el movimiento en tu banco.</li><li>Confirma el monto exacto y el nombre de quien envía.</li>
-        ${admin ? '' : '<li>El administrador la marcará como verificada al revisarla.</li>'}</ul>
-        <label class="chk big-chk"><input type="checkbox" id="vchk"> ${admin ? 'Ya la vi reflejada en el banco' : 'Revisé el comprobante con el cliente'}</label></div>
+        <li>Queda <b>por verificar</b>: se confirma con lo que de verdad llegó al banco, en Pedidos o en la Caja.</li></ul>
+        <label class="chk big-chk"><input type="checkbox" id="vchk"> Revisé el comprobante con el cliente</label></div>
         <div class="modal-actions">
           <button class="btn" data-r="no">Regresar</button>
-          ${admin ? '<button class="btn" data-r="despues">Registrar, verificar después</button>' : ''}
-          <button class="btn btn-primary" data-r="si" disabled>${admin ? 'Registrar y marcar verificada' : 'Registrar venta'}</button></div>`);
+          <button class="btn btn-primary" data-r="si" disabled>Registrar venta</button></div>`);
       FX.tap();
       let fin = false;
       const done = (x) => { if (fin) return; fin = true; dlg.close(); resolve(x); };
       $('#vchk', dlg).addEventListener('change', (e) => { $('[data-r=si]', dlg).disabled = !e.target.checked; });
       $('[data-r=no]', dlg).onclick = () => done(null);
-      $('[data-r=despues]', dlg)?.addEventListener('click', () => done('despues'));
-      $('[data-r=si]', dlg).onclick = () => done(admin ? 'verificada' : 'ok');
+      $('[data-r=si]', dlg).onclick = () => done('ok');
       dlg.addEventListener('close', () => done(null), { once: true });
     });
   }
@@ -511,7 +502,7 @@ VIEWS['ventas'] = async (v, q) => {
           <td class="num"><b>${money0(x.total)}</b>${+x.descuento ? `<div class="small muted">−${money0(x.descuento)}</div>` : ''}</td>
           <td>${pagoBadges(x, false)}${x.metodo === 'mixto' && !x.anulada ? `<div class="small muted">💵 ${money0(x.pago_efectivo)} · 🏦 ${money0(x.pago_transfer)}</div>` : ''}</td>
           <td><span class="badge ${x.tipo === 'paqueteria' ? 'b-brand' : ''}">${TIPOS_VENTA[x.tipo]}</span>${x.municipio ? `<div class="small muted">📍 ${esc(x.municipio)}</div>` : ''}</td>
-          <td class="actions">${admin && !x.anulada && esTr ? `<label class="chk small" title="Verificada en el banco (${money0(pagoTr(x))})"><input type="checkbox" data-verif="${x.id}" ${x.verificada ? 'checked' : ''}> ok</label>` : ''}
+          <td class="actions">${admin && !x.anulada && esTr ? `<label class="chk small" title="Verificada en el banco (${money0(pagoTr(x))})"><input type="checkbox" data-verif="${x.id}" data-esp="${pagoTr(x)}" data-cli="${esc(x.cliente)}" ${x.verificada ? 'checked' : ''}> ok</label>` : ''}
             ${puedeCambiarPago(x, admin) ? `<button class="btn btn-sm btn-ghost" data-cpago="${x.id}" title="Cambiar cómo pagó">💱</button>` : ''}
             ${admin && !x.anulada ? `<button class="btn btn-sm btn-ghost" data-anular="${x.id}" title="Cancelar venta">✕</button>` : ''}</td>
         </tr>`;
@@ -609,7 +600,7 @@ VIEWS['inicio'] = async (v) => {
   const valor = inv.reduce((s, i) => s + +i.valor_publico, 0);
   v.innerHTML = `
     <div class="hola card"><span class="hola-ava">${avatar(perfil)}</span>
-      <div><h1>¡Hola, ${esc(perfil.nombre)}!</h1><div class="muted">${fechaDia(now.toISOString())}</div></div>
+      <div><h1>¡Hola, ${esc(perfil.nombre)}!</h1><div class="muted">${hoyTxt()}</div></div>
       <a class="btn btn-primary btn-lg" href="#/ventas">+ Nueva venta</a></div>
     <div class="kpis">
       ${kpi('Vendí hoy', cuenta(t.total), `${t.num} venta${t.num == 1 ? '' : 's'} · ${fnum(t.piezas)} pz`, 'hl')}
@@ -729,7 +720,7 @@ async function tableroVendedor(box, { vendId, r, p, inv, admin, recargar, vigent
           <span class="foco ${x.verificada ? 'foco-ok' : 'foco-am'}" title="${x.verificada ? 'Verificada en el banco' : 'Por verificar'}"></span>
           <div><b>${esc(x.cliente)}</b><div class="small muted">${folio(x.id)} · ${r.hoy ? hora(x.fecha) : fecha(x.fecha)}${x.tipo === 'paqueteria' ? ` · 📦 ${x.municipio ? esc(x.municipio) : 'paquetería'}` : ''}${x.referencia ? ` · ref ${esc(x.referencia)}` : ''}</div></div>
           <b>${money0((+x.pago_transfer || 0) + (+x.extra || 0))}${x.metodo === 'mixto' ? ' <span class="badge b-brand">mixto</span>' : ''}${+x.extra ? ` <span class="badge b-extra">+${money0(x.extra)} extra</span>` : ''}</b>
-          ${admin ? `<label class="sw" title="${x.verificada ? 'Verificada' : 'Marcar verificada'}"><input type="checkbox" data-verif="${x.id}" ${x.verificada ? 'checked' : ''}><i></i></label>` : `<span class="small ${x.verificada ? '' : 'warn-t'}">${x.verificada ? 'verificada' : 'por verificar'}</span>`}
+          ${admin ? `<label class="sw" title="${x.verificada ? 'Verificada' : 'Marcar verificada'}"><input type="checkbox" data-verif="${x.id}" data-esp="${pagoTr(x)}" data-cli="${esc(x.cliente)}" ${x.verificada ? 'checked' : ''}><i></i></label>` : `<span class="small ${x.verificada ? '' : 'warn-t'}">${x.verificada ? 'verificada' : 'por verificar'}</span>`}
         </div>`).join('')}</div>` : `<div class="empty">Sin transferencias ${esc(per)}</div>`}
       </div>
       <div class="dash-b"><div class="dash-t">🏧 Depósitos al banco ${esc(per)} <span class="muted small">retiro de caja de su efectivo</span></div>

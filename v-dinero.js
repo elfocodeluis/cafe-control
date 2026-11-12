@@ -128,7 +128,7 @@ const hoyRango = rangoHoy;
 
 // Fechas de un periodo para mostrarlas: "9 – 15 nov"
 const fechasRango = (r) => {
-  const fc = (x) => new Date(x).toLocaleDateString('es-MX', { timeZone: TZ, day: 'numeric', month: 'short' });
+  const fc = (x) => new Date(diaMX(new Date(x)) + 'T12:00:00Z').toLocaleDateString('es-MX', { timeZone: 'UTC', day: 'numeric', month: 'short' });
   const a = r.desde, b = new Date(new Date(r.hasta) - 1).toISOString();
   if (r.clave === 'todo') return 'desde el inicio';
   return diaMX(new Date(a)) === diaMX(new Date(b)) ? fechaDia(new Date(new Date(a).getTime() + 12 * 36e5).toISOString()) : `${fc(a)} – ${fc(b)}`;
@@ -138,7 +138,7 @@ const perTxt = (r) => (r.hoy ? 'hoy' : r.clave === 'custom' ? (r.dia ? `el ${r.e
 
 VIEWS['resumen'] = async (v) => {
   // Un solo selector de periodo arriba: todo el tablero (tarjetas, utilidades, gráficas y paneles) sigue ese periodo
-  v.innerHTML = `<div class="fin-head" id="fin-h"><div><h1>Finanzas</h1><div class="muted small">${fechaDia(new Date().toISOString())}</div></div>
+  v.innerHTML = `<div class="fin-head" id="fin-h"><div><h1>Finanzas</h1><div class="muted small">${hoyTxt()}</div></div>
       <div class="tools">${rangoHTML('hoy', true, { quick: [['hoy', 'Hoy'], ['semana', 'Semana'], ['mes', 'Mes'], ['anio', 'Año']], cal: true })}</div></div>
     <div class="fin-per" id="fin-per"></div>
     <div id="res"></div>
@@ -276,7 +276,7 @@ function bindMovs(box) {
 VIEWS['caja'] = async (v, q) => {
   const ACCIONES = [['deposito', '🏧', 'Depósito', 'efectivo de un vendedor'], ['pago_comision', '🎁', 'Pagar comisión', 'y extras de vendedores'], ['pago_envio', '📦', 'Pagar paquetería', 'envíos pendientes'],
     ['gasto', '🧾', 'Gasto', 'gasolina, bolsas…'], ['retiro_admin', '🏦', 'Préstamo / retiro', 'admin · sale del banco'], ['pago_proveedor', '🤝', 'Pagar proveedor', 'abonar a deuda'], ['ingreso', '➕', 'Otro ingreso', 'que no es venta'], ['cuadre', '🧮', 'Cuadrar banco', 'compara con tu banca'], ['ajuste', '⚖️', 'Ajuste', 'corregir saldo']];
-  v.innerHTML = `<div class="page-head"><div><h1>Caja y banco</h1><div class="muted small">${fechaDia(new Date().toISOString())} · quién trae el efectivo, qué entró al banco y qué falta pagar</div></div></div>
+  v.innerHTML = `<div class="page-head"><div><h1>Caja y banco</h1><div class="muted small">${hoyTxt()} · quién trae el efectivo, qué entró al banco y qué falta pagar</div></div></div>
     <div class="ana-head ana-top" id="hist-h"><div><span class="eyebrow">Solo lectura</span><h1>Historial</h1><div class="muted small">Días que ya pasaron, con el saldo acumulado del banco</div></div><div class="tools">${rangoHTML('semana', true, { quick: RAPIDOS_ANA, analitica: true, cal: true })}</div></div>
     <div id="hist"></div>
     <div class="sec-hoy"><span class="eyebrow"><span class="vivo"></span>En vivo · hoy</span></div>
@@ -334,7 +334,7 @@ VIEWS['caja'] = async (v, q) => {
           ${vs.map((x) => `<div class="pp ${+x.comision_pendiente ? '' : 'ok'}"><span class="mini-ava">${avatar(x)}</span>
             <div><b>Comisiones${+x.extra ? ' y extras' : ''} de ${esc(x.nombre)}</b><div class="small muted">${+x.comision_pendiente ? `de transferencias ya verificadas, sin pagar` : 'No se le debe nada'}${+x.extra ? ` · 🎁 extras ${esc(per)} ${money0(x.extra)} (${x.extra_num}) · <a href="#/ventas?v=${x.vendedor_id}">ver sus ventas</a>` : ''}${+x.comision_pagada ? ` · pagado ${esc(per)} ${money0(x.comision_pagada)}` : ''}</div></div>
             <b class="pp-m">${money0(x.comision_pendiente)}</b>
-            ${+x.comision_pendiente ? `<div class="pp-b"><button class="btn btn-sm" data-pcom="${x.vendedor_id}" data-o="caja" ${+x.en_poder > 0 ? '' : 'disabled'}>💵 Descontar de su efectivo</button><button class="btn btn-sm btn-primary" data-pcom="${x.vendedor_id}" data-o="banco">🏦 Pagar del banco</button></div>` : '<span class="pp-b small muted">✓</span>'}
+            ${+x.comision_pendiente ? `<div class="pp-b"><button class="btn btn-sm ${+x.en_poder > 0 ? 'btn-primary' : ''}" data-pcom="${x.vendedor_id}" data-o="caja" ${+x.en_poder > 0 ? '' : 'disabled'}>💵 Descontar de su efectivo</button><button class="btn btn-sm ${+x.en_poder > 0 ? '' : 'btn-primary'}" data-pcom="${x.vendedor_id}" data-o="banco">🏦 Pagar del banco</button></div>` : '<span class="pp-b small muted">✓</span>'}
           </div>`).join('')}
           <div class="pp ${+pp.paqueteria ? '' : 'ok'}"><span class="mini-ava mini-of">📦</span>
             <div><b>Paquetería</b><div class="small muted">${+pp.paqueteria ? `envíos ya cobrados y verificados, sin pagar` : 'No se le debe nada'}${+pg.paqueteria ? ` · pagado ${esc(per)} ${money0(pg.paqueteria)}` : ''}</div></div>
@@ -627,7 +627,9 @@ VIEWS['caja'] = async (v, q) => {
     const vends = [];
     lista.forEach((x) => { let g = vends.find((y) => y.vendedor_id === x.vendedor_id); if (!g) vends.push(g = { vendedor_id: x.vendedor_id, nombre: x.vendedor, usuario: x.usuario, en_poder: +x.en_poder, comision: +x.comision_pendiente, envios: [], total: 0 }); g.envios.push(x); g.total += +x.pendiente; });
     let vend = (pre.vendedor && vends.find((g) => g.vendedor_id === pre.vendedor)) ? pre.vendedor : vends[0].vendedor_id;
-    let origen = 'banco'; // 'banco' | 'caja' | 'mixto'
+    // si el vendedor trae efectivo, de entrada se le paga de ahí (lo que no alcance queda pendiente)
+    const origenDef = () => (pre.origen === 'banco' || !(vends.find((x) => x.vendedor_id === vend)?.en_poder > 0) ? 'banco' : 'caja');
+    let origen = origenDef(); // 'banco' | 'caja' | 'mixto'
     const g = () => vends.find((x) => x.vendedor_id === vend);
     modal(`<h2>📦 Pagar paquetería</h2><div class="muted">Envíos ya cobrados al cliente (transferencia verificada) que falta pagar. Se paga por cada envío y queda ligado a su venta.</div>
       <form id="fpaq">
@@ -686,7 +688,7 @@ VIEWS['caja'] = async (v, q) => {
       $$('#porow .pick', f).forEach((b) => b.addEventListener('click', () => { if (!b.disabled) ponOrigen(b.dataset.o); }));
       pinta();
     };
-    $$('#pvend .pick', f).forEach((b) => b.addEventListener('click', () => { vend = b.dataset.v; origen = 'banco'; $$('#pvend .pick', f).forEach((y) => y.classList.toggle('on', y === b)); render(); }));
+    $$('#pvend .pick', f).forEach((b) => b.addEventListener('click', () => { vend = b.dataset.v; origen = origenDef(); $$('#pvend .pick', f).forEach((y) => y.classList.toggle('on', y === b)); render(); }));
     render();
     f.addEventListener('submit', (e) => { e.preventDefault(); const t = total(); const ids = sel(); run($('#pgo', f), async () => {
       // cuánto efectivo va a los envíos y cuánto a la comisión (el efectivo se usa primero en los envíos)
@@ -727,7 +729,9 @@ VIEWS['caja'] = async (v, q) => {
     if (tipo === 'pago_envio' && !+d.por_pagar.paqueteria) return toast('No se le debe nada a la paquetería ✓', true);
     // origen: 'banco' o el id de un vendedor (su efectivo)
     let vend = pre.vendedor || (tipo === 'deposito' ? vs.find((x) => +x.en_poder > 0)?.vendedor_id : tipo === 'pago_comision' ? conPend[0].vendedor_id : '');
-    let origen = tipo === 'deposito' ? vend : tipo === 'pago_comision' ? (pre.origen === 'caja' ? vend : 'banco') : 'banco';
+    // comisión: si el vendedor trae efectivo, de entrada se descuenta de ahí
+    const comDef = () => (pre.origen === 'banco' || !(+(vs.find((x) => x.vendedor_id === vend)?.en_poder || 0) > 0) ? 'banco' : vend);
+    let origen = tipo === 'deposito' ? vend : tipo === 'pago_comision' ? comDef() : 'banco';
     let deuda = pre.deuda || abiertas[0]?.id;
     let cat = 'gasolina';
     const vx = (id) => vs.find((x) => x.vendedor_id === id);
@@ -809,7 +813,7 @@ VIEWS['caja'] = async (v, q) => {
     $$('#dvend .pick', dlg).forEach((x) => x.addEventListener('click', () => {
       vend = x.dataset.v; $$('#dvend .pick', dlg).forEach((y) => y.classList.toggle('on', y === x));
       if (tipo === 'deposito') origen = vend;
-      if (tipo === 'pago_comision') { if (origen !== 'banco' && origen !== 'mixto') origen = vend; $('#dorig-w', dlg).innerHTML = pickOrigen(); bindOrigen(); }
+      if (tipo === 'pago_comision') { origen = comDef(); $('#dorig-w', dlg).innerHTML = pickOrigen(); bindOrigen(); }
       f.m.value = sugerido(); pintaMix();
     }));
     f.deuda?.addEventListener('change', () => { deuda = +f.deuda.value; f.m.value = sugerido(); pintaMix(); });

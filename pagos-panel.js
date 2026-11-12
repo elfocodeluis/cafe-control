@@ -97,7 +97,7 @@ async function tarjetaPagos(box, def = 'semana', dias = {}) {
       ${ver.length ? `<div class="tbl-wrap"><table class="tbl gx-t"><thead><tr><th>Pagado</th><th>Pago</th><th>De dónde</th><th>Registró</th><th class="num">Monto</th></tr></thead><tbody>
         ${ver.map((g) => { const [e, l] = TIPO[g.tipo]; return `<tr class="${g.confirmado ? 'gx-ok' : ''}">
           <td><button type="button" class="gx-chk ${g.confirmado ? 'on' : ''}" data-chk="${esc(g.k)}" title="${g.confirmado ? `Confirmado por ${esc(g.confirmado_por || '')} · ${fecha(g.confirmado_fecha)} — toca para quitar` : 'Marcar como pagado y confirmado'}" aria-label="${g.confirmado ? 'Quitar confirmación' : 'Confirmar pago'}">${g.confirmado ? '✓' : g.parcial ? '–' : ''}</button></td>
-          <td><b>${e} ${l} → ${esc(g.para || 'paquetería')}</b>${detalle(g)}<div class="small muted">${fecha(g.fecha)} · ${hora(g.fecha)}${g.confirmado ? ` · ✓ ${esc(g.confirmado_por || '')}` : ''}</div></td>
+          <td><b>${e} ${l} → ${esc(g.para || 'paquetería')}</b>${detalle(g)}<div class="small muted">${fecha(g.fecha)}${g.confirmado ? ` · ✓ ${esc(g.confirmado_por || '')}` : ''}</div></td>
           <td>${origen(g)}</td>
           <td class="small">${g.registro ? `<span class="mini-ava">${avatar({ nombre: g.registro, usuario: g.registro_usuario })}</span> ${esc(g.registro)}` : '—'}</td>
           <td class="num"><b>${money0(g.total)}</b></td></tr>`; }).join('')}

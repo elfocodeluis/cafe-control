@@ -11,13 +11,17 @@ const CFG_INFO = {
 VIEWS['catalogo'] = async (v) => {
   const [cat, cfg0, muns] = await Promise.all([API.rpc('catalogo_admin'), API.rpc('config_lista'), API.rpc('municipios_lista', { p_todos: true })]);
   muns.sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
-  const cfg = cfg0.filter((c) => !/_paqueteria$/.test(c.clave)); // la paquetería ahora cobra por municipio
+  const cfg = cfg0.filter((c) => !/_paqueteria$/.test(c.clave) && c.clave !== 'corte_dia_hora'); // la paquetería ahora cobra por municipio
+  const corte = cfg0.find((c) => c.clave === 'corte_dia_hora');
   v.innerHTML = `<div class="page-head"><div><h1>Precios</h1><div class="muted small">Cambia un precio y se guarda solo. Las ventas anteriores conservan su precio.</div></div>
       <div class="tools"><input type="search" id="buscar" placeholder="Buscar producto…" style="width:200px"><button class="btn" id="np">+ Producto nuevo</button></div></div>
     <div class="sec-t">⚙️ Reglas de cobro</div>
     <div class="cfg-grid">${cfg.map((c) => { const [e, t, d] = CFG_INFO[c.clave] || ['⚙️', c.nombre, '']; return `<label class="cfg">
       <span class="cfg-e">${e}</span><span class="cfg-t">${esc(t)}</span><span class="cfg-d">${esc(d)}</span>
       <span class="money-in"><span>$</span><input type="number" min="0" step="any" data-cfg="${c.clave}" value="${+c.valor}" inputmode="decimal"></span></label>`; }).join('')}</div>
+    ${corte ? `<label class="cfg cfg-corte"><span class="cfg-e">🌙</span><span class="cfg-t">El día termina a las…</span>
+      <span class="cfg-d">Lo que se registre después de medianoche y antes de esta hora cuenta para la noche anterior en reportes y cortes.</span>
+      <select data-corte>${[0, 1, 2, 3, 4, 5, 6, 7, 8].map((h) => `<option value="${h}" ${+corte.valor === h ? 'selected' : ''}>${h === 0 ? '12:00 a.m. (medianoche)' : `${h}:00 a.m.`}</option>`).join('')}</select></label>` : ''}
     <div class="sec-t">📍 Envío por paquetería según municipio <span class="muted small" style="font-weight:400">lo paga el cliente y es lo que se le paga a la paquetería</span></div>
     <div class="mun-ed">${muns.map((m) => `<div class="mun-r ${m.activo ? '' : 'off'}" data-mid="${m.id}">
         <input class="mun-n" data-mf="nombre" value="${esc(m.nombre)}" aria-label="Municipio">
@@ -66,6 +70,7 @@ VIEWS['catalogo'] = async (v) => {
       await API.rpc('guardar_municipio', { p: { nombre: f.nombre.value, precio: f.precio.value } }); dlg.close(); toast('Municipio agregado'); recargar();
     }); });
   });
+  $('[data-corte]', v)?.addEventListener('change', (e) => run(e.target, async () => { await API.rpc('guardar_config', { p_clave: 'corte_dia_hora', p_valor: +e.target.value }); CORTE_H = +e.target.value; guardado(e.target); toast('Guardado: el día termina a las ' + e.target.selectedOptions[0].textContent); }));
   $$('[data-cfg]', v).forEach((i) => i.addEventListener('change', () => run(i, async () => { await API.rpc('guardar_config', { p_clave: i.dataset.cfg, p_valor: +i.value }); guardado(i); toast('Guardado'); })));
   $$('[data-op]', v).forEach((i) => { i.dataset.prev = i.value; i.addEventListener('change', () => {
     if (i.value === '' || +i.value < 0) { i.value = i.dataset.prev; return toast('Escribe un precio válido', true); }

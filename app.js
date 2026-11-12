@@ -15,8 +15,9 @@ const cant = (v, modo) => {
   if (modo === 'piezas') return `${fnum(v)} pz`;
   return Math.abs(v) >= 1000 ? `${fnum(v / 1000, 3)} kg` : `${fnum(v, 1)} g`;
 };
-const fecha = (iso) => new Date(iso).toLocaleString('es-MX', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
-const hora = (iso) => new Date(iso).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+const LUNA = (iso) => (iso && typeof madrugada === 'function' && madrugada(iso) ? ' 🌙' : ''); // después de medianoche: cuenta para la noche anterior
+const fecha = (iso) => new Date(iso).toLocaleString('es-MX', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) + LUNA(iso);
+const hora = (iso) => new Date(iso).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }) + LUNA(iso);
 const fechaDia = (iso) => new Date(iso).toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' });
 const folio = (id) => '#' + String(id).padStart(4, '0');
 const GRAMOS_14 = 500 / 35;
@@ -452,9 +453,14 @@ const logo = (size = 18) => `<svg width="${size}" height="${size}" viewBox="0 0 
 // igual que el servidor, aunque el teléfono tenga otra zona horaria.
 const TZ = 'America/Mexico_City';
 const FMT_DIA = new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' });
-const diaMX = (d = new Date()) => FMT_DIA.format(d);                       // 'AAAA-MM-DD'
+// Día de operación: el día termina a las CORTE_H (4 = 4:00 a.m.), no a medianoche. Lo de madrugada cuenta para la noche anterior.
+let CORTE_H = 4;
+const diaMX = (d = new Date()) => FMT_DIA.format(new Date(new Date(d).getTime() - CORTE_H * 36e5)); // 'AAAA-MM-DD' (día de operación)
 const masDias = (dia, n) => { const d = new Date(dia + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
-const isoMX = (dia) => new Date(dia + 'T00:00:00-06:00').toISOString();    // inicio de ese día en México
+const isoMX = (dia) => new Date(new Date(dia + 'T00:00:00-06:00').getTime() + CORTE_H * 36e5).toISOString(); // inicio de ese día de operación
+const FMT_H = new Intl.DateTimeFormat('en-US', { timeZone: TZ, hour: 'numeric', hourCycle: 'h23' });
+const madrugada = (iso) => CORTE_H > 0 && +FMT_H.format(new Date(iso)) < CORTE_H; // se registró después de medianoche
+const hoyTxt = () => fechaDia(new Date(new Date(isoMX(diaMX())).getTime() + 8 * 36e5).toISOString()); // 'miércoles, 11 de noviembre'
 const dowMX = (dia) => (new Date(dia + 'T12:00:00Z').getUTCDay() + 6) % 7; // 0 = lunes
 const rangoHoy = () => { const h = diaMX(); return { clave: 'hoy', desde: isoMX(h), hasta: isoMX(masDias(h, 1)), etiqueta: 'Hoy', hoy: true }; };
 const diaLocal = diaMX;
@@ -538,7 +544,7 @@ async function boot() {
   let s = null;
   try { s = await API.session(); } catch {}
   if (!s) return renderLogin();
-  try { ME = await API.rpc('mi_perfil'); }
+  try { ME = await API.rpc('mi_perfil'); if (ME.corte_dia != null) CORTE_H = Math.min(8, Math.max(0, Math.trunc(+ME.corte_dia))); }
   catch (e) {
     // solo se cierra la sesión si el problema es la sesión; sin internet se reintenta
     if (ES_SESION.test(e.message) || /permiso|perfil|desactiv/i.test(e.message)) { await API.logout(); return renderLogin(e.message); }
@@ -864,6 +870,7 @@ function ventaHTML(v, admin) {
     <div class="small muted">${[
       +v.comision && !v.anulada ? `Comisión vendedor: ${money(v.comision)}${retenido(v) && retenido(v) < +v.comision ? ` (se quedó ${money0(retenido(v))} del efectivo)` : ''}` : '',
       +v.extra && !v.anulada ? `<b>Extra para el vendedor: ${money(v.extra)}</b> (cliente transfirió ${money(pagoTr(v))})` : '',
+      +v.sobrante && !v.anulada ? `<b>Transfirió ${money(v.sobrante)} de más · del negocio</b>` : '',
       v.metodo_original ? `Se registró como ${esc(v.metodo_original)}` : '',
       admin && +v.envio_costo ? `Paquetería: ${money(v.envio_costo)}` : '',
       admin && !v.anulada ? `<b>Queda: ${money(v.total - (+v.comision || 0) - (+v.envio_costo || 0))}</b>` : '',
@@ -873,7 +880,7 @@ function ventaHTML(v, admin) {
     ].filter(Boolean).join(' · ')}</div>
     ${v.anulada && v.motivo_anulacion ? `<div class="small muted">Motivo de cancelación: ${esc(v.motivo_anulacion)}</div>` : ''}
     ${!v.anulada && (admin || puedeCambiarPago(v, admin)) ? `<div class="venta-acts">
-      ${admin && esTr ? `<label class="chk"><input type="checkbox" data-verif="${v.id}" ${v.verificada ? 'checked' : ''}> Transferencia de ${money0(pagoTr(v))} verificada en el banco</label>` : '<span></span>'}
+      ${admin && esTr ? `<label class="chk"><input type="checkbox" data-verif="${v.id}" data-esp="${pagoTr(v)}" data-cli="${esc(v.cliente)}" ${v.verificada ? 'checked' : ''}> Transferencia de ${money0(pagoTr(v))} verificada en el banco</label>` : '<span></span>'}
       <span class="inline">${puedeCambiarPago(v, admin) ? `<button class="btn btn-sm" data-cpago="${v.id}">💱 Cambiar pago</button>` : ''}
       ${admin ? `<button class="btn btn-sm btn-danger" data-anular="${v.id}">Cancelar venta</button>` : ''}</span></div>` : ''}
   </div>`;
@@ -882,16 +889,54 @@ function ventaHTML(v, admin) {
 function bindVerificar(root, recargar) {
   $$('[data-verif]', root).forEach((c) => c.addEventListener('change', async () => {
     const ok = c.checked;
-    if (!ok && !(await confirmar('Quitar verificación', 'El monto saldrá del saldo del banco hasta que la vuelvas a verificar.', 'Quitar', true))) { c.checked = true; return; }
+    if (ok) { c.checked = false; if (await verificarRecibido(+c.dataset.verif, +c.dataset.esp, c.dataset.cli || '')) recargar(); return; }
+    if (!(await confirmar('Quitar verificación', 'El monto saldrá del saldo del banco hasta que la vuelvas a verificar.', 'Quitar', true))) { c.checked = true; return; }
     const hecho = await run(c, async () => {
-      await API.rpc('verificar_transferencia', { p_venta: +c.dataset.verif, p_verificada: ok });
-      if (ok) FX.caja();
-      toast(ok ? 'Transferencia verificada: ya cuenta en el banco' : 'Verificación quitada');
+      await API.rpc('verificar_transferencia', { p_venta: +c.dataset.verif, p_verificada: false });
+      toast('Verificación quitada');
       return true;
     });
     if (!hecho) { c.checked = !ok; return; } // el servidor no cambió: regresa el interruptor
     recargar();
   }));
+}
+
+// Verificar una transferencia: escribes lo que llegó a tu banco. Si llegó de más, eliges de quién es.
+function verificarRecibido(id, esperado, cliente) {
+  return new Promise((resolve) => {
+    let destino = '', listo = false;
+    modal(`<h2>🔒 Verificar transferencia ${folio(id)}</h2>
+      <div class="muted">Abre tu banca en línea y busca la transferencia de <b>${esc(cliente)}</b>. Escribe lo que llegó, no lo que dice la captura.</div>
+      <form id="fver">
+        <div class="cua-sis"><span>Registrado en la venta</span><b>${money(esperado)}</b></div>
+        <label class="field"><span>¿Cuánto llegó al banco?</span><input name="rec" type="number" step="any" min="0" inputmode="decimal" class="input-big" required value="${esperado}"></label>
+        <div id="ver-r"></div>
+        <label class="field"><span>Referencia o últimos 4 dígitos <i class="muted">(opcional)</i></span><input name="ref" maxlength="60" placeholder="Ej. 4821"></label>
+        <div class="modal-actions"><button type="button" class="btn" data-close>Cancelar</button><button class="btn btn-primary" id="ver-go">Verificar</button></div>
+      </form>`);
+    const f = $('#fver', dlg), res = $('#ver-r', f), go = $('#ver-go', f);
+    const pinta = () => {
+      const rec = +f.rec.value, dif = Math.round((rec - esperado) * 100) / 100;
+      if (!f.rec.value.trim() || !(rec > 0)) { res.innerHTML = ''; go.disabled = true; go.textContent = 'Verificar'; return; }
+      if (Math.abs(dif) < 0.005) { res.innerHTML = '<div class="cua-ok">✓ Coincide con la venta</div>'; go.disabled = false; go.textContent = 'Verificar'; return; }
+      if (dif < 0) {
+        res.innerHTML = `<div class="cua-dif menos">Llegaron <b>${money0(-dif)} menos</b>. No se puede verificar así: corrige la venta con <b>💱 Cambiar pago</b> o pregúntale al vendedor.</div>`;
+        go.disabled = true; go.textContent = 'Verificar'; return;
+      }
+      res.innerHTML = `<div class="cua-dif mas">Llegaron <b>${money0(dif)} de más</b>. ¿De quién son?</div>
+        <div class="pick-row" id="ver-d">${[['negocio', '🏪', 'Del negocio', 'entra como ingreso'], ['vendedor', '🎁', 'Propina del vendedor', 'se le debe al vendedor']].map(([k, e, l, sub]) => `<button type="button" class="pick ${destino === k ? 'on' : ''}" data-d="${k}"><span class="mini-ava mini-of">${e}</span>${l}<small>${sub}</small></button>`).join('')}</div>`;
+      $$('#ver-d .pick', res).forEach((b) => b.addEventListener('click', () => { destino = b.dataset.d; pinta(); }));
+      go.disabled = !destino; go.textContent = destino ? `Verificar ${money0(rec)}` : 'Elige de quién son';
+    };
+    f.rec.addEventListener('input', pinta); pinta();
+    f.addEventListener('submit', (e) => { e.preventDefault(); run(go, async () => {
+      const r = await API.rpc('verificar_recibido', { p_venta: id, p_recibido: +f.rec.value, p_destino: destino || null, p_referencia: f.ref.value || null });
+      listo = true; dlg.close(); FX.caja();
+      toast(+r.diferencia ? `Verificada · ${money0(r.diferencia)} de más ${r.destino === 'negocio' ? 'para el negocio' : 'de propina'}` : 'Transferencia verificada: ya cuenta en el banco');
+    }); });
+    dlg.addEventListener('close', () => resolve(listo), { once: true });
+    f.rec.select();
+  });
 }
 
 function bindAnular(root, recargar) {

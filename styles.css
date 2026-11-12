@@ -1293,3 +1293,8 @@ body.arrastrando .cesta { border-color: var(--accent); background: var(--accent-
 .cua-tip { font-size: 13px; color: var(--muted); margin: 10px 0 4px; line-height: 1.6; }
 .cua-hist { margin-top: 18px; padding-top: 12px; border-top: 1px solid var(--border); }
 .cua-hi { display: flex; justify-content: space-between; gap: 10px; padding: 6px 0; font-size: 13px; }
+
+/* Día de operación */
+.luna { font-size: .85em; opacity: .8; }
+.cfg-corte { margin-top: 12px; max-width: 520px; }
+.cfg-corte select { justify-self: start; min-height: 40px; font-weight: 600; }
