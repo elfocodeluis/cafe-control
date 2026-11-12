@@ -95,9 +95,13 @@ function bloqueVentas(box, d, r) {
   $('[data-kpi=gastos]', box)?.addEventListener('click', () => {
     const porCat = {};
     d.gastos_lista.forEach((g) => { (porCat[g.categoria] ||= []).push(g); });
+    const porBen = d.gastos_por_beneficiario || [];
+    const maxB = Math.max(1, ...porBen.map((b) => +b.total));
     modal(`<h2>Gastos operativos · ${esc(r.etiqueta)}</h2>
+      ${porBen.some((b) => b.beneficiario) ? `<div class="gben"><div class="gben-t">¿A quién se le pagó?</div>
+        ${porBen.map((b) => `<div class="gbar"><span>${b.beneficiario ? `<b>${esc(b.beneficiario)}</b>` : '<span class="muted">Sin especificar</span>'} <span class="muted small">(${b.num})</span></span><div class="bar"><i style="width:${(b.total / maxB) * 100}%"></i></div><b>${money0(b.total)}</b></div>`).join('')}</div>` : ''}
       ${d.gastos_lista.length ? Object.entries(porCat).map(([c, gs]) => { const [, e, l] = catGasto(c); return `<div class="gcat"><div class="gcat-h"><span>${e} <b>${esc(l)}</b></span><b>${money0(gs.reduce((s, g) => s + +g.monto, 0))}</b></div>
-        ${gs.map((g) => `<div class="gcat-i"><span>${esc(g.concepto)} <span class="muted small">· ${fecha(g.fecha)} · ${g.cuenta === 'caja' ? 'Efectivo' : 'Banco'}</span></span><span>${money0(g.monto)}</span></div>`).join('')}</div>`; }).join('')
+        ${gs.map((g) => `<div class="gcat-i"><span>${esc(g.concepto)}${g.beneficiario ? ` <b>→ ${esc(g.beneficiario)}</b>` : ''} <span class="muted small">· ${fecha(g.fecha)} · ${g.cuenta === 'caja' ? 'Efectivo' : 'Banco'}</span></span><span>${money0(g.monto)}</span></div>`).join('')}</div>`; }).join('')
       : '<div class="empty">Sin gastos en este periodo</div>'}
       ${r.hoy ? '<div class="modal-actions"><a class="btn btn-primary" href="#/caja?op=gasto" data-close>+ Registrar gasto</a></div>' : ''}`, true);
   });
@@ -220,7 +224,7 @@ function tablaMovs(movs, r, per) {
     ${movs.map((m) => `<tr data-cta="${m.cuenta}" data-pago="${['pago_comision', 'pago_envio', 'pago_proveedor'].includes(m.tipo) && !m.venta_id ? 1 : ''}"><td class="small">${r.hoy ? hora(m.fecha) : fecha(m.fecha)}</td>
       <td>${m.cuenta === 'caja' ? `<span class="badge b-ok">Efectivo</span><div class="small muted">${esc(m.vendedor || '')}</div>` : `<span class="badge b-info">Banco</span>${m.vendedor && ['deposito', 'venta', 'reverso'].includes(m.tipo) ? `<div class="small muted">vía ${esc(m.vendedor)}</div>` : ''}`}</td>
       <td>${tipoDin(m)}${m.categoria && m.tipo === 'gasto' ? ` <span class="small">${catGasto(m.categoria)[1]}</span>` : ''}</td>
-      <td class="small">${m.venta_id ? `${folio(m.venta_id)} · ` : ''}${esc(m.concepto || '')}${m.usuario ? ` <span class="muted">· ${esc(m.usuario)}</span>` : ''}</td>
+      <td class="small">${m.venta_id ? `${folio(m.venta_id)} · ` : ''}${esc(m.concepto || '')}${m.beneficiario ? ` <b>→ ${esc(m.beneficiario)}</b>` : ''}${m.usuario ? ` <span class="muted">· ${esc(m.usuario)}</span>` : ''}</td>
       <td class="num" style="color:${m.monto < 0 ? 'var(--err)' : 'var(--ok)'}"><b>${m.monto > 0 ? '+' : ''}${money(m.monto)}</b></td></tr>`).join('')}
     </tbody></table></div>` : `<div class="empty">Sin movimientos ${esc(per)}</div>`}</div>`;
 }
@@ -620,6 +624,7 @@ VIEWS['caja'] = async (v, q) => {
         ${tipo === 'gasto' ? `<div class="field"><span>¿En qué?</span><div class="chips" id="dcat">${CATS_GASTO.map(([k, e, l]) => `<button type="button" class="chip ${k === cat ? 'on' : ''}" data-k="${k}">${e} ${l}</button>`).join('')}</div></div>` : ''}
         ${tipo !== 'deposito' ? `<div class="field"><span>${['ingreso'].includes(tipo) ? '¿A dónde entra?' : tipo === 'ajuste' ? '¿Qué saldo corriges?' : '¿De dónde sale?'}</span><div id="dorig-w">${pickOrigen()}</div></div>` : ''}
         <label class="field"><span>Monto</span><input name="m" type="number" step="any" ${tipo === 'ajuste' ? '' : 'min="0.01"'} required inputmode="decimal" class="input-big" value="${sugerido()}"></label>
+        ${tipo === 'gasto' ? `<label class="field"><span>¿A quién se le paga? <i class="muted">(proveedor, vendedor o cualquier nombre)</i></span><input name="b" list="dbenef" maxlength="120" autocomplete="off" placeholder="Ej. Juan Pablo"><datalist id="dbenef">${(d.beneficiarios || []).map((n) => `<option value="${esc(n)}">`).join('')}</datalist></label>` : ''}
         <label class="field"><span>${tipo === 'gasto' ? 'Detalle' : 'Concepto'}${conceptoReq ? '' : ' <i class="muted">(opcional)</i>'}</span><input name="c" ${conceptoReq ? 'required' : ''} placeholder="${tipo === 'gasto' ? 'Ej. 100 bolsas kraft' : tipo === 'deposito' ? 'Ej. depósito en OXXO' : ''}"></label>
         <div class="modal-actions"><button type="button" class="btn" data-close>Cancelar</button><button class="btn btn-primary">Guardar</button></div>
       </form>`);
@@ -641,7 +646,8 @@ VIEWS['caja'] = async (v, q) => {
       await run($('.btn-primary', f), async () => {
         const enCaja = origen !== 'banco';
         await API.rpc('registrar_dinero', { p_tipo: tipo, p_cuenta: enCaja ? 'caja' : 'banco', p_monto: +f.m.value, p_concepto: f.c.value,
-          p_vendedor: tipo === 'pago_comision' ? vend : enCaja ? origen : null, p_categoria: tipo === 'gasto' ? cat : null, p_deuda: tipo === 'pago_proveedor' ? +deuda : null });
+          p_vendedor: tipo === 'pago_comision' ? vend : enCaja ? origen : null, p_categoria: tipo === 'gasto' ? cat : null, p_deuda: tipo === 'pago_proveedor' ? +deuda : null,
+          p_beneficiario: tipo === 'gasto' ? (f.b.value.trim() || null) : null });
         dlg.close();
         if (['deposito', 'pago_proveedor', 'pago_comision', 'pago_envio'].includes(tipo)) FX.caja(); else FX.exito();
         toast('Movimiento registrado'); load(); recargarHist();

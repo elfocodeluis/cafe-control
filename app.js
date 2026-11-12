@@ -587,6 +587,7 @@ function renderShell() {
     <aside class="side">
       <div class="side-brand"><span class="brand-dot">${logo(18)}</span><div><b>${esc(C.nombre)}</b><small>${ROLES[ME.rol]}</small></div></div>
       <nav class="nav nav-side">${links}</nav>
+      <div class="side-chat" data-chat-side></div>
       <div class="side-foot">
         <div class="side-user"><span class="side-ava">${avatar(ME)}</span><div><b>${esc(ME.nombre)}</b><small>@${esc(ME.usuario || '')}</small></div></div>
         <div class="side-tools">
@@ -601,6 +602,7 @@ function renderShell() {
       <div class="who">
         <button type="button" class="icon-btn" data-snd title="Sonidos" aria-label="Sonidos"></button>
         <button type="button" class="icon-btn" data-tema title="Tema" aria-label="Cambiar tema"></button>
+        <button type="button" class="icon-btn chat-top-btn" data-chat-top title="Chat del equipo" aria-label="Chat del equipo">💬<b class="chat-badge" data-chat-badge hidden></b></button>
         <span class="who-ava">${avatar(ME)}</span>
         <button type="button" class="btn btn-sm btn-ghost" data-salir>Salir</button>
       </div>
@@ -619,7 +621,8 @@ function renderShell() {
     const t = TEMAS[(i + 1) % TEMAS.length][0];
     store.set('tema', t); aplicarTema(t); pinta(); FX.nav(); toast(TEMAS.find((x) => x[0] === t)[2]);
   }; });
-  $$('[data-salir]').forEach((b) => { b.onclick = async () => { await API.logout(); ME = null; location.hash = ''; renderLogin(); }; });
+  $$('[data-salir]').forEach((b) => { b.onclick = async () => { window.Chat?.parar(); await API.logout(); ME = null; location.hash = ''; renderLogin(); }; });
+  window.Chat?.montar();
 }
 
 const VIEWS = {};

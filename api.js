@@ -65,6 +65,10 @@
       store.set(null);
     },
 
+    // Canal en tiempo real de Supabase (solo en producción; en pruebas locales devuelve null)
+    canal(nombre, opciones) { return sb ? sb.channel(nombre, opciones) : null; },
+    quitarCanal(ch) { if (sb && ch) sb.removeChannel(ch); },
+
     async rpc(fn, params = {}) {
       try {
         if (sb) {
