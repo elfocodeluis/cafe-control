@@ -186,7 +186,7 @@ VIEWS['resumen'] = async (v) => {
       <a class="hero-k hl" href="#/ventas"><span class="hk-l">${r.hoy ? 'Ventas de hoy' : tit('Ventas')}</span><b>${cuenta(vt.total)}</b><span class="hk-s">${vt.num} ${vt.num === 1 ? 'venta' : 'ventas'} · ${fnum(d.piezas)} piezas</span>${barra2(vt.efectivo, vt.transferencia)}</a>
       <div class="hero-k ${u.neta < 0 ? 'bad' : ''}"><span class="hk-l">${r.hoy ? 'Utilidad neta' : tit('Utilidad neta')}</span><b>${cuenta(u.neta)}</b><span class="hk-s">bruta ${money0(u.bruta)} · margen ${fnum(u.margen, 1)}%</span></div>
       <a class="hero-k" href="#/caja"><span class="hk-l">Efectivo con vendedores</span><b>${cuenta(di.caja)}</b><span class="hk-s">ahora · hasta que lo depositen al banco</span>${desglose(pv.filter((p) => +p.en_poder).map((p) => ({ ...p, monto: p.en_poder })))}</a>
-      <a class="hero-k ${netoBanco < 0 ? 'bad' : ''}" href="#/caja"><span class="hk-l">${tit('Banco')}</span><b>${cuenta(netoBanco)}</b><span class="hk-s">entró ${money0(bancoEntro(bp))} · salió ${money0(bancoSalio(bp))}<br>saldo total ahora <b class="${+di.banco < 0 ? 'neg-t' : ''}">${money0(di.banco)}</b></span></a>
+      <a class="hero-k ${netoBanco < 0 ? 'bad' : ''}" href="#/boveda"><span class="hk-l">${tit('Banco')}</span><b>${cuenta(netoBanco)}</b><span class="hk-s">entró ${money0(bancoEntro(bp))} · salió ${money0(bancoSalio(bp))}<br>saldo total ahora <b class="${+di.banco < 0 ? 'neg-t' : ''}">${money0(di.banco)}</b></span></a>
     </div>
     <div class="pend">${pendientes.length ? pendientes.map(([e, t, m, h]) => `<a class="pend-i" href="${h}"><span class="pend-e">${e}</span><span>${t}</span><b>${money0(m)}</b><span class="go">›</span></a>`).join('')
       : '<div class="pend-ok"><span class="foco foco-ok"></span> Todo en orden: nada por verificar, nada por pagar.</div>'}</div>
@@ -270,13 +270,62 @@ function bindMovs(box) {
   });
 }
 
+// Cuadrar banco: escribes lo que dice tu banca en línea y la diferencia queda registrada con su motivo
+// alListo: qué recargar al terminar · abrirOp: abrir el formulario de depósito o gasto
+async function formCuadreBanco(sis, { alListo = () => {}, abrirOp = (op) => { location.hash = '#/caja?op=' + op; } } = {}) {
+  const MOT_MAS = [['saldo_inicial', '💰', 'Ya había dinero', 'antes de usar el sistema'], ['transferencia', '🔁', 'Transferencia', 'que entró y no se registró'], ['otro', '✏️', 'Otro', 'escribe qué pasó']];
+  const MOT_MENOS = [['comision_banco', '🏦', 'Cargo del banco', 'comisión, IVA, anualidad…'], ['otro', '✏️', 'Otro', 'escribe qué pasó']];
+  let motivo = '';
+  modal(`<h2>🧮 Cuadrar banco</h2><div class="muted">Abre tu banca en línea y escribe cuánto hay ahorita. Te digo si cuadra con lo registrado y, si no, la diferencia queda anotada con su motivo.</div>
+    <form id="fcua">
+      <div class="cua-sis"><span>Según el sistema</span><b class="${sis < 0 ? 'neg-t' : ''}">${money0(sis)}</b></div>
+      <label class="field"><span>¿Cuánto hay en el banco ahorita?</span><input name="real" type="number" step="any" inputmode="decimal" class="input-big" required placeholder="Ej. 5500"></label>
+      <div id="cua-r"></div>
+      <div class="modal-actions"><button type="button" class="btn" data-close>Cancelar</button><button class="btn btn-primary" id="cua-go" disabled>Guardar</button></div>
+      <div id="cua-h"></div>
+    </form>`);
+  const f = $('#fcua', dlg), res = $('#cua-r', f), go = $('#cua-go', f);
+  const pinta = () => {
+    const txt = f.real.value.trim();
+    if (txt === '') { res.innerHTML = ''; go.disabled = true; go.textContent = 'Guardar'; return; }
+    const real = +txt, dif = Math.round((real - sis) * 100) / 100;
+    if (Math.abs(dif) < 0.005) {
+      res.innerHTML = '<div class="cua-ok">✓ ¡Cuadra! El banco y el sistema dicen lo mismo.</div>';
+      go.disabled = false; go.textContent = 'Listo'; motivo = ''; return;
+    }
+    const mas = dif > 0, mots = mas ? MOT_MAS : MOT_MENOS;
+    if (!mots.some((m) => m[0] === motivo)) motivo = '';
+    res.innerHTML = `<div class="cua-dif ${mas ? 'mas' : 'menos'}">${mas ? `En el banco hay <b>${money0(dif)} más</b> de lo registrado` : `En el banco hay <b>${money0(-dif)} menos</b> de lo registrado`}</div>
+      <div class="cua-tip">${mas
+        ? `Antes de ajustar, revisa: ¿un vendedor depositó efectivo? <button type="button" class="btn btn-sm" data-cua-op="deposito">🏧 Registrar depósito</button> (así se le descuenta de lo que trae). ¿Un gasto se pagó en efectivo pero quedó como banco? Revíertelo en <b>Gastos operativos</b> y regístralo bien.`
+        : `Antes de ajustar, revisa: ¿falta registrar un gasto o un pago? <button type="button" class="btn btn-sm" data-cua-op="gasto">🧾 Registrar gasto</button>`}</div>
+      <div class="field"><span>Si no es eso, ¿por qué la diferencia?</span><div class="pick-row" id="cua-m">${mots.map(([k, e, l, sub]) => `<button type="button" class="pick ${motivo === k ? 'on' : ''}" data-m="${k}"><span class="mini-ava mini-of">${e}</span>${l}<small>${sub}</small></button>`).join('')}</div></div>
+      <label class="field"><span>Nota ${motivo === 'otro' ? '' : '<i class="muted">(opcional)</i>'}</span><input name="nota" maxlength="140" placeholder="Ej. saldo al 10 de noviembre" value="${esc(f.nota?.value || '')}"></label>`;
+    $$('#cua-m .pick', res).forEach((b) => b.addEventListener('click', () => { motivo = b.dataset.m; pinta(); }));
+    $$('[data-cua-op]', res).forEach((b) => b.addEventListener('click', () => { dlg.close(); abrirOp(b.dataset.cuaOp); }));
+    go.disabled = !motivo;
+    go.textContent = motivo ? `Registrar ajuste de ${mas ? '+' : '−'}${money0(Math.abs(dif))}` : 'Elige el motivo';
+  };
+  f.real.addEventListener('input', pinta);
+  f.addEventListener('submit', (e) => { e.preventDefault(); run(go, async () => {
+    const r = await API.rpc('cuadrar_banco', { p_saldo_real: +f.real.value, p_motivo: motivo || null, p_nota: f.nota?.value || null });
+    dlg.close();
+    if (r.cuadra) { FX.exito(); toast('✓ El banco cuadra'); alListo(); return; }
+    FX.caja(); toast(`Banco cuadrado · ajuste de ${r.diferencia > 0 ? '+' : '−'}${money0(Math.abs(r.diferencia))}`); alListo();
+  }); });
+  f.real.focus();
+  // cuadres anteriores
+  const hist = await API.rpc('cuadres_banco').catch(() => []);
+  if (hist.length && $('#cua-h', dlg)) $('#cua-h', dlg).innerHTML = `<div class="cua-hist"><div class="small muted">Cuadres anteriores</div>${hist.slice(0, 5).map((h) => `<div class="cua-hi"><span>${esc(h.concepto.replace(/^Cuadre de banco · /, ''))}<small class="muted"> · ${esc(h.por || '')} · ${fecha(h.registrado || h.fecha)}</small></span><b class="${h.monto < 0 ? 'neg-t' : ''}">${h.monto > 0 ? '+' : '−'}${money0(Math.abs(h.monto))}</b></div>`).join('')}</div>`;
+}
+
 /* ---------- caja y banco ----------
    No hay caja de oficina: el efectivo lo trae cada vendedor hasta que lo deposita al banco.
    Comisiones de ventas por transferencia y la paquetería quedan "por pagar". */
 VIEWS['caja'] = async (v, q) => {
   const ACCIONES = [['deposito', '🏧', 'Depósito', 'efectivo de un vendedor'], ['pago_comision', '🎁', 'Pagar comisión', 'y extras de vendedores'], ['pago_envio', '📦', 'Pagar paquetería', 'envíos pendientes'],
     ['gasto', '🧾', 'Gasto', 'gasolina, bolsas…'], ['retiro_admin', '🏦', 'Préstamo / retiro', 'admin · sale del banco'], ['pago_proveedor', '🤝', 'Pagar proveedor', 'abonar a deuda'], ['ingreso', '➕', 'Otro ingreso', 'que no es venta'], ['cuadre', '🧮', 'Cuadrar banco', 'compara con tu banca'], ['ajuste', '⚖️', 'Ajuste', 'corregir saldo']];
-  v.innerHTML = `<div class="page-head"><div><h1>Caja y banco</h1><div class="muted small">${hoyTxt()} · quién trae el efectivo, qué entró al banco y qué falta pagar</div></div></div>
+  v.innerHTML = `<div class="page-head"><div><h1>Caja y pagos</h1><div class="muted small">${hoyTxt()} · quién trae el efectivo, qué falta pagar y los gastos · el banco está en la <a href="#/boveda">🔒 Bóveda</a></div></div></div>
     <div class="ana-head ana-top" id="hist-h"><div><span class="eyebrow">Solo lectura</span><h1>Historial</h1><div class="muted small">Días que ya pasaron, con el saldo acumulado del banco</div></div><div class="tools">${rangoHTML('semana', true, { quick: RAPIDOS_ANA, analitica: true, cal: true })}</div></div>
     <div id="hist"></div>
     <div class="sec-hoy"><span class="eyebrow"><span class="vivo"></span>En vivo · hoy</span></div>
@@ -313,15 +362,14 @@ VIEWS['caja'] = async (v, q) => {
             ${vs.map((x) => `<div class="holder"><span class="mini-ava">${avatar(x)}</span><span>${esc(x.nombre)} trae${+x.depositado ? `<small class="muted"> · depositó ${money0(x.depositado)} ${esc(per)}</small>` : ''}</span><b>${money0(x.en_poder)}</b>
               ${+x.en_poder > 0 ? `<button class="btn btn-sm btn-primary" data-depositar="${x.vendedor_id}">🏧 Depositó</button>` : '<span class="small muted">✓</span>'}</div>`).join('')}
           </div></div>
-        <div class="card saldo-card"><div class="saldo-l">🏦 BANCO · LO QUE SE MOVIÓ HOY</div><div class="saldo ${+bp.final - +bp.inicial < 0 ? 'neg-t' : ''}">${cuenta(+bp.final - +bp.inicial)}</div>
-          <div class="small muted">Entró ${money0(bancoEntro(bp))} · salió ${money0(bancoSalio(bp))}</div>
-          <div class="leyenda"><span><b>🔁 Transferencias</b> = un cliente pagó una venta directo al banco.</span><span><b>🏧 Depósitos</b> = el vendedor llevó su efectivo al banco (retiro de caja de vendedores).</span></div>
-          <div class="bk">
-            <div class="bk-h"><span>hoy</span><span>🔁 Transf. de ventas</span><span>🏧 Depósitos</span></div>
-            ${bp.por_vendedor.map((x) => `<div class="bk-r"><span><span class="mini-ava">${avatar(x)}</span>${esc(x.nombre)}</span><b>${money0(x.transferencias)}<small>${x.transf_num} ${x.transf_num === 1 ? 'venta' : 'ventas'}</small></b><b>${money0(x.depositos)}<small>${x.dep_num} ${x.dep_num === 1 ? 'depósito' : 'depósitos'}</small></b></div>`).join('')}
-          </div>
-          <div class="bq-wrap">${bancoCuadre(bp, r, false)}</div>
-          ${d.por_verificar.num ? `<a class="pv-link" href="#/ventas?pend=1">⏳ ${money0(d.por_verificar.monto)} en ${d.por_verificar.num} transferencias por verificar →</a>` : '<div class="pv-ok">✓ Todas las transferencias verificadas</div>'}
+        <div class="saldo-card bv-acceso-w">
+          <a class="bv-acceso" href="#/boveda" aria-label="Abrir la Bóveda: banco">
+            <span class="bv-acc-disco" aria-hidden="true"><i></i></span>
+            <span class="bv-acc-t"><span class="bv-l">🔒 Bóveda · banco</span><b>${cuenta(d.banco)}</b>
+              <span class="bv-s">hoy entró +${money0(bancoEntro(bp))} · salió −${money0(bancoSalio(bp))}</span></span>
+            <span class="bv-acc-ir">Abrir →</span>
+          </a>
+          ${d.por_verificar.num ? `<a class="pv-link" href="#/boveda">⏳ ${money0(d.por_verificar.monto)} en ${d.por_verificar.num} transferencias por verificar →</a>` : '<div class="pv-ok">✓ Todas las transferencias verificadas</div>'}
           ${totDeuda ? `<button type="button" class="pv-link deuda" data-ir="deudas">🤝 Debemos ${money0(totDeuda)} a proveedores →</button>` : ''}</div>
       </div>
 
@@ -513,54 +561,8 @@ VIEWS['caja'] = async (v, q) => {
     cuadre: ['🧮 Cuadrar banco', ''],
     ajuste: ['⚖️ Ajuste de saldo', 'Corrige el saldo después de revisar el banco o contar el efectivo de un vendedor. Usa negativo para restar.'],
   };
-  // Cuadrar banco: escribes lo que dice tu banca en línea y la diferencia queda registrada con su motivo
-  async function formCuadre() {
-    const sis = +d.banco;
-    const MOT_MAS = [['saldo_inicial', '💰', 'Ya había dinero', 'antes de usar el sistema'], ['transferencia', '🔁', 'Transferencia', 'que entró y no se registró'], ['otro', '✏️', 'Otro', 'escribe qué pasó']];
-    const MOT_MENOS = [['comision_banco', '🏦', 'Cargo del banco', 'comisión, IVA, anualidad…'], ['otro', '✏️', 'Otro', 'escribe qué pasó']];
-    let motivo = '';
-    modal(`<h2>🧮 Cuadrar banco</h2><div class="muted">Abre tu banca en línea y escribe cuánto hay ahorita. Te digo si cuadra con lo registrado y, si no, la diferencia queda anotada con su motivo.</div>
-      <form id="fcua">
-        <div class="cua-sis"><span>Según el sistema</span><b class="${sis < 0 ? 'neg-t' : ''}">${money0(sis)}</b></div>
-        <label class="field"><span>¿Cuánto hay en el banco ahorita?</span><input name="real" type="number" step="any" inputmode="decimal" class="input-big" required placeholder="Ej. 5500"></label>
-        <div id="cua-r"></div>
-        <div class="modal-actions"><button type="button" class="btn" data-close>Cancelar</button><button class="btn btn-primary" id="cua-go" disabled>Guardar</button></div>
-        <div id="cua-h"></div>
-      </form>`);
-    const f = $('#fcua', dlg), res = $('#cua-r', f), go = $('#cua-go', f);
-    const pinta = () => {
-      const txt = f.real.value.trim();
-      if (txt === '') { res.innerHTML = ''; go.disabled = true; go.textContent = 'Guardar'; return; }
-      const real = +txt, dif = Math.round((real - sis) * 100) / 100;
-      if (Math.abs(dif) < 0.005) {
-        res.innerHTML = '<div class="cua-ok">✓ ¡Cuadra! El banco y el sistema dicen lo mismo.</div>';
-        go.disabled = false; go.textContent = 'Listo'; motivo = ''; return;
-      }
-      const mas = dif > 0, mots = mas ? MOT_MAS : MOT_MENOS;
-      if (!mots.some((m) => m[0] === motivo)) motivo = '';
-      res.innerHTML = `<div class="cua-dif ${mas ? 'mas' : 'menos'}">${mas ? `En el banco hay <b>${money0(dif)} más</b> de lo registrado` : `En el banco hay <b>${money0(-dif)} menos</b> de lo registrado`}</div>
-        <div class="cua-tip">${mas
-          ? `Antes de ajustar, revisa: ¿un vendedor depositó efectivo? <button type="button" class="btn btn-sm" data-cua-op="deposito">🏧 Registrar depósito</button> (así se le descuenta de lo que trae). ¿Un gasto se pagó en efectivo pero quedó como banco? Revíertelo en <b>Gastos operativos</b> y regístralo bien.`
-          : `Antes de ajustar, revisa: ¿falta registrar un gasto o un pago? <button type="button" class="btn btn-sm" data-cua-op="gasto">🧾 Registrar gasto</button>`}</div>
-        <div class="field"><span>Si no es eso, ¿por qué la diferencia?</span><div class="pick-row" id="cua-m">${mots.map(([k, e, l, sub]) => `<button type="button" class="pick ${motivo === k ? 'on' : ''}" data-m="${k}"><span class="mini-ava mini-of">${e}</span>${l}<small>${sub}</small></button>`).join('')}</div></div>
-        <label class="field"><span>Nota ${motivo === 'otro' ? '' : '<i class="muted">(opcional)</i>'}</span><input name="nota" maxlength="140" placeholder="Ej. saldo al 10 de noviembre" value="${esc(f.nota?.value || '')}"></label>`;
-      $$('#cua-m .pick', res).forEach((b) => b.addEventListener('click', () => { motivo = b.dataset.m; pinta(); }));
-      $$('[data-cua-op]', res).forEach((b) => b.addEventListener('click', () => { dlg.close(); formDinero(b.dataset.cuaOp); }));
-      go.disabled = !motivo;
-      go.textContent = motivo ? `Registrar ajuste de ${mas ? '+' : '−'}${money0(Math.abs(dif))}` : 'Elige el motivo';
-    };
-    f.real.addEventListener('input', pinta);
-    f.addEventListener('submit', (e) => { e.preventDefault(); run(go, async () => {
-      const r = await API.rpc('cuadrar_banco', { p_saldo_real: +f.real.value, p_motivo: motivo || null, p_nota: f.nota?.value || null });
-      dlg.close();
-      if (r.cuadra) { FX.exito(); toast('✓ El banco cuadra'); return; }
-      FX.caja(); toast(`Banco cuadrado · ajuste de ${r.diferencia > 0 ? '+' : '−'}${money0(Math.abs(r.diferencia))}`); load(); recargarHist();
-    }); });
-    f.real.focus();
-    // cuadres anteriores
-    const hist = await API.rpc('cuadres_banco').catch(() => []);
-    if (hist.length && $('#cua-h', dlg)) $('#cua-h', dlg).innerHTML = `<div class="cua-hist"><div class="small muted">Cuadres anteriores</div>${hist.slice(0, 5).map((h) => `<div class="cua-hi"><span>${esc(h.concepto.replace(/^Cuadre de banco · /, ''))}<small class="muted"> · ${esc(h.por || '')} · ${fecha(h.registrado || h.fecha)}</small></span><b class="${h.monto < 0 ? 'neg-t' : ''}">${h.monto > 0 ? '+' : '−'}${money0(Math.abs(h.monto))}</b></div>`).join('')}</div>`;
-  }
+  // Cuadrar banco (la misma ventana que usa la Bóveda)
+  function formCuadre() { return formCuadreBanco(+d.banco, { alListo: () => { load(); recargarHist(); }, abrirOp: (op) => formDinero(op) }); }
   // Préstamo / retiro del banco para un administrador
   function formRetiro(pre = {}) {
     const admins = adminsCache.length ? adminsCache : [{ id: ME.id, nombre: ME.nombre, usuario: ME.usuario, prestamo_pendiente: 0 }];

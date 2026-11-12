@@ -591,6 +591,7 @@ function renderLogin(error) {
 const ICON = {
   finanzas: '<path d="M4 19V9M10 19V5M16 19v-7M22 19H2" />',
   caja: '<rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M7 15h3"/>',
+  boveda: '<rect x="3" y="4" width="18" height="15" rx="2"/><circle cx="12" cy="11.5" r="3.5"/><path d="M12 8v1.2M12 13.8V15M8.5 11.5h1.2M14.3 11.5h1.2M6 19v2M18 19v2"/>',
   ventas: '<path d="M6 7h12l-1 12H7L6 7z"/><path d="M9 7a3 3 0 0 1 6 0"/>',
   producir: '<path d="M12 3c-4 6 4 12 0 18"/><ellipse cx="12" cy="12" rx="7" ry="9"/>',
   almacen: '<path d="M3 9l9-5 9 5v11H3z"/><path d="M8 20v-6h8v6"/>',
@@ -603,7 +604,7 @@ const ICON = {
 };
 const ico = (k, s = 18) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON[k] || ''}</svg>`;
 
-const NAV_ADMIN = [['resumen', 'Finanzas', 'finanzas'], ['caja', 'Caja y banco', 'caja'], ['ventas', 'Ventas', 'ventas'], ['revendedores', 'Revendedores', 'revend'], ['entregar', 'Producir y entregar', 'producir'], ['almacen', 'Almacén', 'almacen'], ['catalogo', 'Precios', 'precios'], ['usuarios', 'Usuarios', 'usuarios']];
+const NAV_ADMIN = [['resumen', 'Finanzas', 'finanzas'], ['boveda', 'Bóveda', 'boveda'], ['caja', 'Caja y pagos', 'caja'], ['ventas', 'Ventas', 'ventas'], ['revendedores', 'Revendedores', 'revend'], ['entregar', 'Producir y entregar', 'producir'], ['almacen', 'Almacén', 'almacen'], ['catalogo', 'Precios', 'precios'], ['usuarios', 'Usuarios', 'usuarios']];
 const NAV_PROD = [['entregar', 'Producir y entregar', 'producir'], ['almacen', 'Almacén', 'almacen'], ['vendedores', 'Inventario de vendedores', 'inv']];
 const NAV_VEND = [['ventas', 'Vender', 'ventas'], ['inicio', 'Mi panel', 'panel'], ['pedir', 'Pedir producto', 'pedir']];
 const nav = () => ({ admin: NAV_ADMIN, produccion: NAV_PROD }[ME.rol] || NAV_VEND);
