@@ -505,7 +505,7 @@ VIEWS['ventas'] = async (v, q) => {
         return `<tr class="${x.anulada ? 'anul' : ''}${+x.extra && !x.anulada ? ' con-extra' : ''}" data-busca="${esc((x.cliente + ' ' + folio(x.id) + ' ' + (x.telefono || '')).toLowerCase())}">
           <td class="small">${r.hoy ? hora(x.fecha) : fecha(x.fecha)}</td>
           <td><button type="button" class="link" data-ver="${x.id}">${folio(x.id)}</button></td>
-          <td><b>${esc(x.cliente)}</b>${x.telefono ? `<div class="small muted">${esc(x.telefono)}</div>` : ''}${verTodos && admin ? `<div class="small muted">${esc(x.vendedor)}</div>` : ''}</td>
+          <td><b>${esc(x.cliente)}</b>${x.canal === 'revendedor' ? ' <span class="badge b-info">Revendedor</span>' : ''}${x.telefono ? `<div class="small muted">${esc(x.telefono)}</div>` : ''}${verTodos && admin ? `<div class="small muted">${esc(x.vendedor)}</div>` : ''}</td>
           <td class="small">${(x.items || []).map((i) => `${i.cantidad}× ${esc(i.descripcion)}`).join('<br>')}</td>
           <td class="num">${pz}</td>
           <td class="num"><b>${money0(x.total)}</b>${+x.descuento ? `<div class="small muted">−${money0(x.descuento)}</div>` : ''}</td>

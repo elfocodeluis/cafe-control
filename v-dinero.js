@@ -129,12 +129,14 @@ const hoyRango = rangoHoy;
 VIEWS['resumen'] = async (v) => {
   v.innerHTML = `<div class="page-head"><div><span class="eyebrow"><span class="vivo"></span>En vivo · hoy</span><h1>Finanzas</h1><div class="muted small">${fechaDia(new Date().toISOString())}</div></div></div>
     <div id="res"></div>
+    <div id="gastos-fin"></div>
     <div class="ana-head" id="ana-h"><div><span class="eyebrow">Solo lectura</span><h1>Analítica</h1><div class="muted small">Semanas, meses y años que ya pasaron, para comparar</div></div><div class="tools">${rangoHTML('semana', true, { quick: RAPIDOS_ANA, analitica: true })}</div></div>
     ${tabsHTML('ana', [['tend', 'Tendencia'], ['vend', 'Vendedores'], ['util', 'Utilidades']], 'tend')}
     <div data-panel="ana:tend"><div id="ana-t"></div></div>
     <div data-panel="ana:vend" hidden><div id="ana-p"></div></div>
     <div data-panel="ana:util" hidden><div id="ana-v"></div></div>`;
   bindTabs(v, 'ana');
+  tarjetaGastos($('#gastos-fin', v));
 
   // ---------- HOY: operación ----------
   const r = hoyRango();
@@ -248,12 +250,14 @@ VIEWS['caja'] = async (v, q) => {
   v.innerHTML = `<div class="page-head"><div><span class="eyebrow"><span class="vivo"></span>En vivo · hoy</span><h1>Caja y banco</h1><div class="muted small">${fechaDia(new Date().toISOString())} · quién trae el efectivo, qué entró al banco y qué falta pagar</div></div></div>
     <div class="acciones">${ACCIONES.map(([k, e, t, s]) => `<button type="button" class="tile tile-sm" data-op="${k}"><span class="tile-e">${e}</span><span class="tile-t">${t}</span><span class="tile-s">${s}</span></button>`).join('')}</div>
     <div id="cj"></div>
+    <div id="gastos-cj"></div>
     <div class="ana-head" id="hist-h"><div><span class="eyebrow">Solo lectura</span><h1>Historial</h1><div class="muted small">Días que ya pasaron, con el saldo acumulado del banco</div></div><div class="tools">${rangoHTML('semana', true, { quick: RAPIDOS_ANA, analitica: true })}</div></div>
     <div id="hist"></div>`;
   let d = null;
   let adminsCache = [];
 
   const load = async () => {
+    tarjetaGastos($('#gastos-cj', v));
     const r = hoyRango();
     let admins;
     [d, admins] = await Promise.all([API.rpc('tesoreria', { p_desde: r.desde, p_hasta: r.hasta }), API.rpc('retiros_admin', { p_desde: r.desde, p_hasta: r.hasta }).catch(() => [])]);

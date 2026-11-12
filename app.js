@@ -563,11 +563,12 @@ const ICON = {
   usuarios: '<circle cx="9" cy="8" r="3.5"/><path d="M2 20c1-4 4-6 7-6s6 2 7 6M16 4a3 3 0 0 1 0 6M18 14c2 1 3 3 4 6"/>',
   panel: '<rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="5" rx="2"/><rect x="13" y="10" width="8" height="11" rx="2"/><rect x="3" y="13" width="8" height="8" rx="2"/>',
   pedir: '<path d="M12 5v14M5 12h14"/>',
+  revend: '<path d="M3 7h18l-1.5 5h-15z"/><path d="M5 12v8h14v-8M9 20v-5h6v5"/>',
   inv: '<rect x="4" y="4" width="16" height="16" rx="3"/><path d="M4 10h16M10 4v16"/>',
 };
 const ico = (k, s = 18) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON[k] || ''}</svg>`;
 
-const NAV_ADMIN = [['resumen', 'Finanzas', 'finanzas'], ['caja', 'Caja y banco', 'caja'], ['ventas', 'Ventas', 'ventas'], ['entregar', 'Producir y entregar', 'producir'], ['almacen', 'Almacén', 'almacen'], ['catalogo', 'Precios', 'precios'], ['usuarios', 'Usuarios', 'usuarios']];
+const NAV_ADMIN = [['resumen', 'Finanzas', 'finanzas'], ['caja', 'Caja y banco', 'caja'], ['ventas', 'Ventas', 'ventas'], ['revendedores', 'Revendedores', 'revend'], ['entregar', 'Producir y entregar', 'producir'], ['almacen', 'Almacén', 'almacen'], ['catalogo', 'Precios', 'precios'], ['usuarios', 'Usuarios', 'usuarios']];
 const NAV_PROD = [['entregar', 'Producir y entregar', 'producir'], ['almacen', 'Almacén', 'almacen'], ['vendedores', 'Inventario de vendedores', 'inv']];
 const NAV_VEND = [['ventas', 'Vender', 'ventas'], ['inicio', 'Mi panel', 'panel'], ['pedir', 'Pedir producto', 'pedir']];
 const nav = () => ({ admin: NAV_ADMIN, produccion: NAV_PROD }[ME.rol] || NAV_VEND);
