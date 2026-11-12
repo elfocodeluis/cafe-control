@@ -54,6 +54,7 @@ VIEWS['catalogo'] = async (v) => {
   $$('[data-mf]', v).forEach((i) => i.addEventListener('change', () => {
     const r = i.closest('[data-mid]');
     const p = { id: r.dataset.mid, nombre: $('[data-mf=nombre]', r).value, precio: $('[data-mf=precio]', r).value, activo: $('[data-mf=activo]', r).checked };
+    if (p.precio === '' || +p.precio < 0) { toast('Escribe un precio válido', true); return; }
     run(i, async () => { await API.rpc('guardar_municipio', { p }); r.classList.toggle('off', !p.activo); guardado(i); toast('Municipio guardado'); });
   }));
   $('#nmun', v).addEventListener('click', () => {

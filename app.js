@@ -953,7 +953,7 @@ document.addEventListener('DOMContentLoaded', boot);
       const b = document.createElement('div');
       b.className = 'upd-bar';
       b.innerHTML = '<span>✨ Hay una versión nueva de la app</span><button type="button">Actualizar</button>';
-      b.querySelector('button').addEventListener('click', () => location.reload());
+      b.querySelector('button').addEventListener('click', () => location.replace(location.pathname + '?v=' + encodeURIComponent(nueva) + location.hash));
       document.body.appendChild(b);
     } catch { /* sin red: se reintenta luego */ }
   };

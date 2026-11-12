@@ -23,12 +23,14 @@ function bancoCuadre(bp, r, acumulado = true) {
   if (+bp.paqueteria) filas.push(fila('Pagado a paquetería', bp.paqueteria, 'neg'));
   if (+bp.gastos) filas.push(fila('Gastos', bp.gastos, 'neg'));
   if (+bp.proveedores) filas.push(fila('Proveedores y compras', bp.proveedores, 'neg'));
+  if (+bp.admin_entro) filas.push(fila('Devoluciones de préstamos', bp.admin_entro, 'pos', 'de administradores'));
+  if (+bp.admin_salio) filas.push(fila('Préstamos y retiros de admin', bp.admin_salio, 'neg', 'sueldo, préstamos…'));
   if (+bp.otros) filas.push(fila('Ajustes', bp.otros, +bp.otros > 0 ? 'pos' : 'neg'));
   filas.push(acumulado ? fila('Al cierre', bp.final, 'fin') : fila(r.hoy ? 'Neto de hoy' : 'Neto', +bp.final - +bp.inicial, 'fin'));
   return `<div class="bq">${filas.join('')}</div>`;
 }
-const bancoEntro = (bp) => +bp.transferencias + +bp.depositos + +bp.ingresos + (+bp.extras || 0) + Math.max(0, +bp.otros);
-const bancoSalio = (bp) => +bp.comisiones + +bp.paqueteria + +bp.gastos + +bp.proveedores + Math.max(0, -bp.otros);
+const bancoEntro = (bp) => +bp.transferencias + +bp.depositos + +bp.ingresos + (+bp.extras || 0) + (+bp.admin_entro || 0) + Math.max(0, +bp.otros);
+const bancoSalio = (bp) => +bp.comisiones + +bp.paqueteria + +bp.gastos + +bp.proveedores + (+bp.admin_salio || 0) + Math.max(0, -bp.otros);
 
 // Utilidad bruta y neta de un periodo. La merma (café que sobra al producir) también cuesta.
 function utilidades(d) {
@@ -565,14 +567,21 @@ VIEWS['caja'] = async (v, q) => {
     f.addEventListener('submit', (e) => { e.preventDefault(); const t = total(); const ids = sel(); run($('#pgo', f), async () => {
       const cuenta = origen === 'banco' ? 'banco' : 'caja';
       if (ids.length) await API.rpc('pagar_paqueteria', { p_ventas_json: ids, p_cuenta: cuenta });
-      if (t.com > 0) await API.rpc('registrar_dinero', { p_tipo: 'pago_comision', p_cuenta: cuenta, p_monto: t.com, p_concepto: null, p_vendedor: vend });
+      if (t.com > 0) {
+        try { await API.rpc('registrar_dinero', { p_tipo: 'pago_comision', p_cuenta: cuenta, p_monto: t.com, p_concepto: null, p_vendedor: vend }); }
+        catch (err) {
+          dlg.close(); load(); recargarHist();
+          if (!ids.length) throw err;
+          return toast(`Envíos pagados ✓, pero la comisión no se pudo pagar: ${err.message}`, true);
+        }
+      }
       dlg.close(); toast(`Pagado ${money0(t.tot)}${ids.length ? ` · ${ids.length} ${ids.length === 1 ? 'envío' : 'envíos'}` : ''}${t.com ? ' + comisión' : ''}`); load(); recargarHist();
     }); });
   }
   function formDinero(tipo, pre = {}) {
+    if (!d) return toast('Espera un segundo, todavía se están cargando los saldos', true);
     if (tipo === 'pago_envio') return formPaq(pre);
     if (tipo === 'retiro_admin') return formRetiro(pre);
-    if (!d) return toast('Espera un segundo, todavía se están cargando los saldos', true);
     const [tit, desc] = TIT[tipo];
     const vs = d.vendedores;
     if (pre.vendedor && !vs.some((x) => x.vendedor_id === pre.vendedor)) pre.vendedor = null;
