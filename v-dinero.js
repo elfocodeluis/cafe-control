@@ -521,6 +521,22 @@ VIEWS['caja'] = async (v, q) => {
       dlg.close(); toast(`Devolución registrada: ${money0(+f.m.value)}`); load(); recargarHist();
     }); });
   }
+  // Pago mixto (como en ventas): parte del efectivo de alguien y el resto del banco
+  const mixBox = (id, ef) => `<div class="row mixpago" id="${id}">
+      <label class="field"><span>💵 ¿Cuánto sale del efectivo?</span><input data-efmix type="number" min="1" step="any" inputmode="decimal" value="${ef}"></label>
+      <div class="field"><span>🏦 El resto sale del banco</span><div class="mix-resto" data-mixresto>—</div></div>
+    </div>`;
+  // Devuelve el texto de validación (o '' si está bien) y pinta el resto
+  const mixPinta = (box, total, poder, nombre) => {
+    const ef = +$('[data-efmix]', box).value || 0;
+    const resto = Math.round((total - ef) * 100) / 100;
+    let err = '';
+    if (!(ef > 0)) err = 'Escribe cuánto sale del efectivo';
+    else if (ef > poder + 0.005) err = `${nombre} solo trae ${money0(poder)} en efectivo`;
+    else if (resto <= 0.005) err = `El efectivo debe ser menor a ${money0(total)} (si alcanza, elige "De su efectivo")`;
+    $('[data-mixresto]', box).innerHTML = err ? `<span style="color:var(--warn)">${esc(err)}</span>` : `<b>${money0(resto)}</b>`;
+    return { ef, resto, err };
+  };
   // Pagar paquetería: por vendedor y por envío (cliente), como "Pagar comisión"
   async function formPaq(pre = {}) {
     const lista = await API.rpc('paqueteria_pendiente').catch((e) => { toast(e.message, true); return null; });
@@ -529,14 +545,14 @@ VIEWS['caja'] = async (v, q) => {
     const vends = [];
     lista.forEach((x) => { let g = vends.find((y) => y.vendedor_id === x.vendedor_id); if (!g) vends.push(g = { vendedor_id: x.vendedor_id, nombre: x.vendedor, usuario: x.usuario, en_poder: +x.en_poder, comision: +x.comision_pendiente, envios: [], total: 0 }); g.envios.push(x); g.total += +x.pendiente; });
     let vend = (pre.vendedor && vends.find((g) => g.vendedor_id === pre.vendedor)) ? pre.vendedor : vends[0].vendedor_id;
-    let origen = 'banco';
+    let origen = 'banco'; // 'banco' | 'caja' | 'mixto'
     const g = () => vends.find((x) => x.vendedor_id === vend);
     modal(`<h2>📦 Pagar paquetería</h2><div class="muted">Envíos ya cobrados al cliente (transferencia verificada) que falta pagar. Se paga por cada envío y queda ligado a su venta.</div>
       <form id="fpaq">
         <div class="field"><span>¿A quién se le debe?</span><div class="pick-row" id="pvend">${vends.map((x) => `<button type="button" class="pick ${x.vendedor_id === vend ? 'on' : ''}" data-v="${x.vendedor_id}"><span class="mini-ava">${avatar(x)}</span>${esc(x.nombre)}<small>${x.envios.length} ${x.envios.length === 1 ? 'envío' : 'envíos'} · ${money0(x.total)}</small></button>`).join('')}</div></div>
         <div class="field"><span>¿Qué envíos?</span><div id="penv"></div></div>
-        <div class="field"><span>¿De dónde sale?</span><div id="porig"></div></div>
         <div id="pcom"></div>
+        <div class="field"><span>¿De dónde sale?</span><div id="porig"></div></div>
         <div class="paq-tot"><span>Total a pagar</span><b id="ptot"></b></div>
         <div class="modal-actions"><button type="button" class="btn" data-close>Cancelar</button><button class="btn btn-primary" id="pgo">Pagar</button></div>
       </form>`);
@@ -547,43 +563,64 @@ VIEWS['caja'] = async (v, q) => {
       const com = $('#pcomchk', f)?.checked ? g().comision : 0;
       return { env, com, tot: env + com };
     };
+    let mix = null;
     const pinta = () => {
-      const t = total();
+      const t = total(), x = g();
       $('#ptot', f).textContent = money0(t.tot);
-      $('#pgo', f).textContent = t.tot ? `Pagar ${money0(t.tot)}` : 'Pagar';
-      $('#pgo', f).disabled = !t.tot;
-      const sin = origen !== 'banco' && t.tot > g().en_poder + 0.005;
-      $('#pgo', f).disabled = !t.tot || sin;
-      $('#pwarn', f) && ($('#pwarn', f).hidden = !sin);
+      const sin = origen === 'caja' && t.tot > x.en_poder + 0.005;
+      mix = origen === 'mixto' ? mixPinta($('#pmix', f), t.tot, x.en_poder, x.nombre) : null;
+      $('#pgo', f).textContent = !t.tot ? 'Pagar' : mix && !mix.err ? `Pagar ${money0(t.tot)} (💵 ${money0(mix.ef)} + 🏦 ${money0(mix.resto)})` : `Pagar ${money0(t.tot)}`;
+      $('#pgo', f).disabled = !t.tot || sin || !!(mix && mix.err);
+      $('#pwarn', f).hidden = !sin;
+      if (sin) $('#pwarn', f).innerHTML = `${esc(x.nombre)} solo trae ${money0(x.en_poder)} en efectivo. <button type="button" class="btn btn-sm" id="pamix">🔀 Usar sus ${money0(x.en_poder)} y el resto del banco</button>`;
+      $('#pamix', f)?.addEventListener('click', () => ponOrigen('mixto', x.en_poder));
+    };
+    const ponOrigen = (o, ef) => {
+      origen = o;
+      $$('#porow .pick', f).forEach((y) => y.classList.toggle('on', y.dataset.o === o));
+      const box = $('#pmix', f);
+      box.hidden = o !== 'mixto';
+      if (o === 'mixto') { const inp = $('[data-efmix]', box); inp.value = ef ?? (g().en_poder < total().tot ? g().en_poder : ''); inp.focus(); }
+      pinta();
     };
     const render = () => {
       const x = g();
-      if (origen !== 'banco') origen = vend;
       $('#penv', f).innerHTML = `<div class="paq-list">${x.envios.map((e) => `<label class="paq-i"><input type="checkbox" data-env="${e.venta_id}" checked>
           <span class="paq-t"><b>Envío de ${esc(e.cliente)}${e.municipio ? ` <span class="muted">· 📍 ${esc(e.municipio)}</span>` : ''}</b><small>Venta #${String(e.venta_id).padStart(4, '0')} · ${fecha(e.fecha)} · cobrada ${money0(e.total)}</small></span><b class="paq-m">${money0(e.pendiente)}</b></label>`).join('')}</div>`;
+      const sinEf = x.en_poder <= 0;
+      if (sinEf) origen = 'banco';
       $('#porig', f).innerHTML = `<div class="pick-row" id="porow"><button type="button" class="pick ${origen === 'banco' ? 'on' : ''}" data-o="banco"><span class="mini-ava mini-of">🏦</span>Banco<small>${money0(d.banco)}</small></button>
-        <button type="button" class="pick ${origen !== 'banco' ? 'on' : ''}" data-o="${x.vendedor_id}" ${x.en_poder <= 0 ? 'disabled' : ''}><span class="mini-ava">${avatar(x)}</span>De su efectivo<small>trae ${money0(x.en_poder)}</small></button></div>
-        <div class="small" id="pwarn" style="color:var(--err)" hidden>${esc(x.nombre)} no trae suficiente efectivo para todo esto.</div>`;
+        <button type="button" class="pick ${origen === 'caja' ? 'on' : ''}" data-o="caja" ${sinEf ? 'disabled' : ''}><span class="mini-ava">${avatar(x)}</span>De su efectivo<small>trae ${money0(x.en_poder)}</small></button>
+        <button type="button" class="pick ${origen === 'mixto' ? 'on' : ''}" data-o="mixto" ${sinEf ? 'disabled' : ''}><span class="mini-ava mini-of">🔀</span>Mixto<small>efectivo + banco</small></button></div>
+        <div class="small" id="pwarn" style="color:var(--err);margin-top:8px" hidden></div>
+        ${mixBox('pmix', x.en_poder < x.total ? x.en_poder : '')}`;
+      const box = $('#pmix', f); box.hidden = origen !== 'mixto';
+      $('[data-efmix]', box).addEventListener('input', pinta);
       $('#pcom', f).innerHTML = x.comision > 0 ? `<label class="paq-com"><input type="checkbox" id="pcomchk"> <span>Pagar también su comisión y extras pendientes <b>${money0(x.comision)}</b></span></label>` : '';
       $$('[data-env]', f).forEach((c) => c.addEventListener('change', pinta));
       $('#pcomchk', f)?.addEventListener('change', pinta);
-      $$('#porow .pick', f).forEach((b) => b.addEventListener('click', () => { if (b.disabled) return; origen = b.dataset.o; $$('#porow .pick', f).forEach((y) => y.classList.toggle('on', y === b)); pinta(); }));
+      $$('#porow .pick', f).forEach((b) => b.addEventListener('click', () => { if (!b.disabled) ponOrigen(b.dataset.o); }));
       pinta();
     };
     $$('#pvend .pick', f).forEach((b) => b.addEventListener('click', () => { vend = b.dataset.v; origen = 'banco'; $$('#pvend .pick', f).forEach((y) => y.classList.toggle('on', y === b)); render(); }));
     render();
     f.addEventListener('submit', (e) => { e.preventDefault(); const t = total(); const ids = sel(); run($('#pgo', f), async () => {
-      const cuenta = origen === 'banco' ? 'banco' : 'caja';
-      if (ids.length) await API.rpc('pagar_paqueteria', { p_ventas_json: ids, p_cuenta: cuenta });
+      // cuánto efectivo va a los envíos y cuánto a la comisión (el efectivo se usa primero en los envíos)
+      const ef = origen === 'banco' ? 0 : origen === 'caja' ? t.tot : mix.ef;
+      const efEnv = Math.min(ef, t.env), efCom = Math.round((ef - efEnv) * 100) / 100;
+      const como = (efx, monto) => (efx <= 0.005 ? ['banco', null] : efx >= monto - 0.005 ? ['caja', null] : ['mixto', efx]);
+      if (ids.length) { const [c, x] = como(efEnv, t.env); await API.rpc('pagar_paqueteria', { p_ventas_json: ids, p_cuenta: c, p_efectivo: x }); }
       if (t.com > 0) {
-        try { await API.rpc('registrar_dinero', { p_tipo: 'pago_comision', p_cuenta: cuenta, p_monto: t.com, p_concepto: null, p_vendedor: vend }); }
+        const [c, x] = como(efCom, t.com);
+        try { await API.rpc('registrar_dinero', { p_tipo: 'pago_comision', p_cuenta: c, p_monto: t.com, p_concepto: null, p_vendedor: vend, p_efectivo: x }); }
         catch (err) {
           dlg.close(); load(); recargarHist();
           if (!ids.length) throw err;
           return toast(`Envíos pagados ✓, pero la comisión no se pudo pagar: ${err.message}`, true);
         }
       }
-      dlg.close(); toast(`Pagado ${money0(t.tot)}${ids.length ? ` · ${ids.length} ${ids.length === 1 ? 'envío' : 'envíos'}` : ''}${t.com ? ' + comisión' : ''}`); load(); recargarHist();
+      FX.caja();
+      dlg.close(); toast(`Pagado ${money0(t.tot)}${ids.length ? ` · ${ids.length} ${ids.length === 1 ? 'envío' : 'envíos'}` : ''}${t.com ? ' + comisión' : ''}${origen === 'mixto' ? ` · 💵 ${money0(ef)} + 🏦 ${money0(t.tot - ef)}` : ''}`); load(); recargarHist();
     }); });
   }
   function formDinero(tipo, pre = {}) {
@@ -608,17 +645,29 @@ VIEWS['caja'] = async (v, q) => {
     const conceptoReq = ['gasto', 'ingreso', 'ajuste'].includes(tipo);
     const sugerido = () => {
       if (tipo === 'deposito') return +(vx(vend)?.en_poder || 0);
-      if (tipo === 'pago_comision') { const p = +(vx(vend)?.comision_pendiente || 0); return origen === 'banco' ? p : Math.min(p, +(vx(vend)?.en_poder || 0)); }
+      if (tipo === 'pago_comision') { const p = +(vx(vend)?.comision_pendiente || 0); return origen === 'banco' || origen === 'mixto' ? p : Math.min(p, +(vx(vend)?.en_poder || 0)); }
       if (tipo === 'pago_envio') return +d.por_pagar.paqueteria;
       if (tipo === 'pago_proveedor') return +(abiertas.find((x) => x.id === +deuda)?.saldo || 0);
       return '';
     };
     const pickVend = (lista, sub) => `<div class="pick-row" id="dvend">${lista.map((x) => `<button type="button" class="pick ${vend === x.vendedor_id ? 'on' : ''}" data-v="${x.vendedor_id}"><span class="mini-ava">${avatar(x)}</span>${esc(x.nombre)}<small>${sub(x)}</small></button>`).join('')}</div>`;
+    // mixto: parte del efectivo de alguien (mixVend) y el resto del banco
+    const puedeMix = ['gasto', 'pago_comision', 'pago_proveedor'].includes(tipo);
+    const conEf = () => (tipo === 'pago_comision' ? [vx(vend)] : vs).filter((x) => x && +x.en_poder > 0);
+    let mixVend = '';
     const pickOrigen = () => {
       const lista = tipo === 'pago_comision' ? [vx(vend)] : vs;
       const entra = ['ingreso', 'ajuste'].includes(tipo);
+      const mixOk = puedeMix && conEf().length > 0;
+      if (origen === 'mixto' && !mixOk) origen = 'banco';
+      if (origen === 'mixto' && !conEf().some((x) => x.vendedor_id === mixVend)) mixVend = conEf()[0].vendedor_id;
       return `<div class="pick-row" id="dorig"><button type="button" class="pick ${origen === 'banco' ? 'on' : ''}" data-o="banco"><span class="mini-ava mini-of">🏦</span>Banco<small>${money0(d.banco)}</small></button>
-        ${lista.map((x) => `<button type="button" class="pick ${origen === x.vendedor_id ? 'on' : ''}" data-o="${x.vendedor_id}" ${!entra && +x.en_poder <= 0 ? 'disabled' : ''}><span class="mini-ava">${avatar(x)}</span>${tipo === 'pago_comision' ? 'De su efectivo' : `Efectivo de ${esc(x.nombre)}`}<small>trae ${money0(x.en_poder)}</small></button>`).join('')}</div>`;
+        ${lista.map((x) => `<button type="button" class="pick ${origen === x.vendedor_id ? 'on' : ''}" data-o="${x.vendedor_id}" ${!entra && +x.en_poder <= 0 ? 'disabled' : ''}><span class="mini-ava">${avatar(x)}</span>${tipo === 'pago_comision' ? 'De su efectivo' : `Efectivo de ${esc(x.nombre)}`}<small>trae ${money0(x.en_poder)}</small></button>`).join('')}
+        ${puedeMix ? `<button type="button" class="pick ${origen === 'mixto' ? 'on' : ''}" data-o="mixto" ${mixOk ? '' : 'disabled'}><span class="mini-ava mini-of">🔀</span>Mixto<small>efectivo + banco</small></button>` : ''}</div>
+        <div class="small" id="dwarn" style="color:var(--err);margin-top:8px" hidden></div>
+        ${puedeMix ? `<div id="dmixw" ${origen === 'mixto' ? '' : 'hidden'}>
+          ${tipo !== 'pago_comision' && conEf().length > 1 ? `<div class="small muted" style="margin:10px 0 6px">¿Efectivo de quién?</div><div class="pick-row" id="dmixv">${conEf().map((x) => `<button type="button" class="pick ${mixVend === x.vendedor_id ? 'on' : ''}" data-mv="${x.vendedor_id}"><span class="mini-ava">${avatar(x)}</span>${esc(x.nombre)}<small>trae ${money0(x.en_poder)}</small></button>`).join('')}</div>` : ''}
+          ${mixBox('dmix', '')}</div>` : ''}`;
     };
     modal(`<h2>${tit}</h2><div class="muted">${desc}</div>
       <form id="fdin">
@@ -633,30 +682,61 @@ VIEWS['caja'] = async (v, q) => {
         <div class="modal-actions"><button type="button" class="btn" data-close>Cancelar</button><button class="btn btn-primary">Guardar</button></div>
       </form>`);
     const f = $('#fdin', dlg);
-    const bindOrigen = () => $$('#dorig .pick', dlg).forEach((x) => x.addEventListener('click', () => {
-      origen = x.dataset.o; $$('#dorig .pick', dlg).forEach((y) => y.classList.toggle('on', y === x)); if (tipo === 'pago_comision') f.m.value = sugerido();
-    }));
+    let mix = null;
+    const btnG = $('.btn-primary', f);
+    const pintaMix = () => {
+      const monto = +f.m.value || 0;
+      const w = $('#dwarn', dlg);
+      const vo = origen !== 'banco' && origen !== 'mixto' ? vx(origen) : null;
+      const sale = !['ingreso', 'ajuste', 'deposito'].includes(tipo);
+      const sin = !!(vo && sale && monto > +vo.en_poder + 0.005);
+      mix = origen === 'mixto' ? mixPinta($('#dmix', dlg), monto, +(vx(mixVend)?.en_poder || 0), vx(mixVend)?.nombre || '') : null;
+      if (w) {
+        w.hidden = !sin;
+        if (sin) {
+          w.innerHTML = `${esc(vo.nombre)} solo trae ${money0(vo.en_poder)} en efectivo.${puedeMix ? ` <button type="button" class="btn btn-sm" id="damix">🔀 Usar sus ${money0(vo.en_poder)} y el resto del banco</button>` : ''}`;
+          $('#damix', dlg)?.addEventListener('click', () => { mixVend = vo.vendedor_id; ponOrigen('mixto', +vo.en_poder); });
+        }
+      }
+      btnG.textContent = mix && !mix.err ? `Guardar (💵 ${money0(mix.ef)} + 🏦 ${money0(mix.resto)})` : 'Guardar';
+    };
+    const ponOrigen = (o, ef) => {
+      origen = o;
+      if (tipo === 'pago_comision') f.m.value = sugerido();
+      $('#dorig-w', dlg).innerHTML = pickOrigen(); bindOrigen();
+      if (o === 'mixto') { const inp = $('#dmix [data-efmix]', dlg); inp.value = ef ?? (+(vx(mixVend)?.en_poder || 0) < (+f.m.value || 0) ? +vx(mixVend).en_poder : ''); inp.focus(); }
+      pintaMix();
+    };
+    const bindOrigen = () => {
+      $$('#dorig .pick', dlg).forEach((x) => x.addEventListener('click', () => { if (!x.disabled) ponOrigen(x.dataset.o); }));
+      $$('#dmixv .pick', dlg).forEach((x) => x.addEventListener('click', () => { mixVend = x.dataset.mv; ponOrigen('mixto'); }));
+      $('#dmix [data-efmix]', dlg)?.addEventListener('input', pintaMix);
+    };
     bindOrigen();
+    f.m.addEventListener('input', pintaMix);
     $$('#dcat .chip', dlg).forEach((x) => x.addEventListener('click', () => { cat = x.dataset.k; $$('#dcat .chip', dlg).forEach((y) => y.classList.toggle('on', y === x)); }));
     $$('#dvend .pick', dlg).forEach((x) => x.addEventListener('click', () => {
       vend = x.dataset.v; $$('#dvend .pick', dlg).forEach((y) => y.classList.toggle('on', y === x));
       if (tipo === 'deposito') origen = vend;
-      if (tipo === 'pago_comision') { if (origen !== 'banco') origen = vend; $('#dorig-w', dlg).innerHTML = pickOrigen(); bindOrigen(); }
-      f.m.value = sugerido();
+      if (tipo === 'pago_comision') { if (origen !== 'banco' && origen !== 'mixto') origen = vend; $('#dorig-w', dlg).innerHTML = pickOrigen(); bindOrigen(); }
+      f.m.value = sugerido(); pintaMix();
     }));
-    f.deuda?.addEventListener('change', () => { deuda = +f.deuda.value; f.m.value = sugerido(); });
+    f.deuda?.addEventListener('change', () => { deuda = +f.deuda.value; f.m.value = sugerido(); pintaMix(); });
     f.addEventListener('submit', async (e) => {
       e.preventDefault();
+      if (mix?.err) { $('#dmix [data-efmix]', dlg).focus(); return toast(mix.err, true); }
       await run($('.btn-primary', f), async () => {
-        const enCaja = origen !== 'banco';
-        await API.rpc('registrar_dinero', { p_tipo: tipo, p_cuenta: enCaja ? 'caja' : 'banco', p_monto: +f.m.value, p_concepto: f.c.value,
-          p_vendedor: tipo === 'pago_comision' ? vend : enCaja ? origen : null, p_categoria: tipo === 'gasto' ? cat : null, p_deuda: tipo === 'pago_proveedor' ? +deuda : null,
-          p_beneficiario: tipo === 'gasto' ? (f.b.value.trim() || null) : null });
+        const esMix = origen === 'mixto';
+        const enCaja = !esMix && origen !== 'banco';
+        await API.rpc('registrar_dinero', { p_tipo: tipo, p_cuenta: esMix ? 'mixto' : enCaja ? 'caja' : 'banco', p_monto: +f.m.value, p_concepto: f.c.value,
+          p_vendedor: tipo === 'pago_comision' ? vend : esMix ? mixVend : enCaja ? origen : null, p_categoria: tipo === 'gasto' ? cat : null, p_deuda: tipo === 'pago_proveedor' ? +deuda : null,
+          p_beneficiario: tipo === 'gasto' ? (f.b.value.trim() || null) : null, p_efectivo: esMix ? mix.ef : null });
         dlg.close();
         if (['deposito', 'pago_proveedor', 'pago_comision', 'pago_envio'].includes(tipo)) FX.caja(); else FX.exito();
         toast('Movimiento registrado'); load(); recargarHist();
       });
     });
+    pintaMix();
     f.m.focus(); f.m.select();
   }
   function formDeuda() {
