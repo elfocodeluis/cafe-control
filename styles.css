@@ -1282,3 +1282,14 @@ body.arrastrando .cesta { border-color: var(--accent); background: var(--accent-
 .px-d-i small { font-size: 12.5px; }
 .px-d-a { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
 @media (max-width: 760px) { .gx-k.px-k { grid-template-columns: repeat(2, minmax(0, 1fr)); } .px-d { grid-template-columns: auto minmax(0, 1fr) auto; } .px-d-a { grid-column: 1 / -1; justify-content: flex-start; } }
+
+/* Cuadrar banco */
+.cua-sis { display: flex; justify-content: space-between; align-items: baseline; padding: 12px 14px; margin: 14px 0 4px; border-radius: 12px; background: var(--surface-2); }
+.cua-sis b { font-size: 20px; }
+.cua-ok { padding: 12px 14px; border-radius: 12px; background: var(--ok-soft); color: var(--ok); font-weight: 600; }
+.cua-dif { padding: 12px 14px; border-radius: 12px; font-size: 15px; }
+.cua-dif.mas { background: var(--ok-soft); }
+.cua-dif.menos { background: color-mix(in srgb, var(--err) 12%, transparent); }
+.cua-tip { font-size: 13px; color: var(--muted); margin: 10px 0 4px; line-height: 1.6; }
+.cua-hist { margin-top: 18px; padding-top: 12px; border-top: 1px solid var(--border); }
+.cua-hi { display: flex; justify-content: space-between; gap: 10px; padding: 6px 0; font-size: 13px; }
