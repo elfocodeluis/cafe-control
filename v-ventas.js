@@ -63,7 +63,8 @@ VIEWS['ventas'] = async (v, q) => {
         <span class="ava-name">${esc(x.nombre)}</span>
         <span class="ava-sub" data-sub="${x.id}">&nbsp;</span>
       </button>`).join('')}</div>` : ''}
-    ${tabsHTML('ventas', [['vender', 'Vender'], ['pedidos', 'Pedidos'], ['tablero', 'Tablero'], ['inv', 'Inventario'], ...(admin ? [['equipo', 'Equipo']] : [])], q.pend ? 'pedidos' : 'vender')}
+    <div class="ventas-tabs-row">${tabsHTML('ventas', [['vender', 'Vender'], ['pedidos', 'Pedidos'], ['tablero', 'Tablero'], ['inv', 'Inventario'], ...(admin ? [['equipo', 'Equipo']] : [])], q.pend ? 'pedidos' : 'vender')}
+      ${admin ? '<button type="button" class="btn btn-rojo" id="btn-exportar" title="Reporte de ventas en PDF para el vendedor">📄 Exportar</button>' : ''}</div>
     <div data-panel="ventas:vender"><div class="ventas-grid">
       <div class="card venta-card" id="nueva"></div>
       <div id="lado"></div>
@@ -73,6 +74,7 @@ VIEWS['ventas'] = async (v, q) => {
     <div data-panel="ventas:inv" hidden><div class="card"><div class="card-head"><h2>Inventario</h2><span class="muted small" id="invsum"></span></div><div id="invbody"></div></div></div>
     ${admin ? '<div data-panel="ventas:equipo" hidden><div id="desemp"></div></div>' : ''}`;
   const irTab = bindTabs(v, 'ventas', { recordar: !q.pend });
+  $('#btn-exportar', v)?.addEventListener('click', () => abrirExportar(vendedores, vendId));
   if (q.pend) irTab('pedidos', false);
 
   let leer;
