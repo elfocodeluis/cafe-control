@@ -1494,3 +1494,15 @@ body.arrastrando .cesta { border-color: var(--accent); background: var(--accent-
   .rp-t { display: table !important; }
   .rep-hoja, .rp-entrega, .rp-k, .rp-kpis > div, .rp-nota, .rp-vacio { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
+/* reporte, versión simple */
+.rp-resumen { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-bottom: 8px; }
+.rp-resumen .rp-k b { font-size: 22px; }
+.rp-kpis.rp-kpis-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.rp-cats { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
+.rp-cat { border: 1.5px solid #e4d9cc; border-radius: 10px; padding: 10px 12px; break-inside: avoid; }
+.rp-cat-h { display: flex; justify-content: space-between; font-weight: 700; color: #5b3a26; border-bottom: 1px solid #e4d9cc; padding-bottom: 6px; margin-bottom: 4px; }
+.rp-cat-i { display: flex; justify-content: space-between; gap: 10px; padding: 4px 0; font-size: 12px; }
+@media (max-width: 720px) { .rp-resumen { grid-template-columns: 1fr; } .rp-kpis.rp-kpis-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media print { .rp-resumen { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; } .rp-kpis.rp-kpis-4 { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; } .rp-cat { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+.rp-resumen.rp-resumen-1 { grid-template-columns: minmax(0, 340px) !important; }
+.rp-resumen-1 .rp-k b { font-size: 26px; }
