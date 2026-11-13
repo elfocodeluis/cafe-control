@@ -27,9 +27,11 @@ function selloBoveda(u) {
 VIEWS['boveda'] = async (v) => {
   const reducir = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const yaAbierta = leerSesion('boveda_abierta') === '1';
-  let rango = hoyRango(), d = null;
+  let rango = hoyRango(), d = null, t = null;
 
-  v.innerHTML = `<div class="page-head"><div><h1>Bóveda</h1><div class="muted small">${hoyTxt()} · la cuenta del banco: saldo, movimientos, transferencias por verificar y cuadres</div></div></div>
+  v.innerHTML = `<div class="page-head"><div><h1>Bóveda</h1><div class="muted small">${hoyTxt()} · dónde está el dinero del negocio ahora: en el banco y en efectivo</div></div></div>
+    <div class="bv-total" id="bv-total"><div><span class="bv-total-l">Dinero del negocio ahora</span><b id="bv-tot-n">…</b></div><span class="bv-total-eq" id="bv-tot-eq"></span></div>
+    <div class="bv-parte-t">🏦 Banco · electrónico</div>
     <section class="bv ${yaAbierta || reducir ? 'abierta sin-anim' : ''}" id="bv" aria-label="Bóveda del banco">
       <div class="bv-caja">
         <div class="bv-marco" aria-hidden="true"></div>
@@ -45,12 +47,14 @@ VIEWS['boveda'] = async (v) => {
         <div class="bv-acts">
           <button type="button" class="btn btn-primary" id="bv-abrir">Abrir la bóveda</button>
           <button type="button" class="btn" id="bv-cuadrar">🧮 Cuadrar banco</button>
-          <a class="btn" href="#/caja">Registrar movimiento</a>
+          <a class="btn" href="#/caja?op=ajuste">⚖️ Ajuste</a>
         </div>
       </div>
     </section>
+    <div class="bv-parte-t">💵 Efectivo · lo traen los vendedores</div>
+    <div class="card bv-efectivo" id="bv-ef"><div class="empty">Cargando…</div></div>
     <div class="bv-in" id="bv-in">
-      ${tabsHTML('boveda', [['libro', 'Libro del banco'], ['verif', 'Por verificar'], ['cuadres', 'Cuadres']], 'libro')}
+      ${tabsHTML('boveda', [['verif', 'Transferencias'], ['libro', 'Libro del banco'], ['periodo', 'Banco por periodo'], ['cuadres', 'Cuadres']], 'verif')}
       <div data-panel="boveda:libro">
         <div class="card bv-libro">
           <div class="card-head bv-libro-h"><h2>Libro del banco <span class="muted small" id="bv-per"></span></h2>
@@ -58,7 +62,13 @@ VIEWS['boveda'] = async (v) => {
           <div id="bv-libro"></div>
         </div>
       </div>
-      <div data-panel="boveda:verif"><div class="card" id="bv-verif"></div></div>
+      <div data-panel="boveda:verif"><div class="card" id="bv-verif"></div>
+        <div class="card bv-conf"><div class="card-head bv-conf-h"><h2>Transferencias confirmadas <span class="muted small" id="bv-conf-per"></span></h2>
+          <div class="tools">${rangoHTML('semana', true, { quick: [['hoy', 'Hoy'], ['semana', 'Semana'], ['mes', 'Mes']], cal: true })}</div></div>
+          <div id="bv-conf"></div></div></div>
+      <div data-panel="boveda:periodo"><div class="card"><div class="card-head bv-per-h"><h2>Banco por periodo <span class="muted small" id="bv-per2"></span></h2>
+          <div class="tools">${rangoHTML('semana', true, { quick: [['hoy', 'Hoy'], ['semana', 'Semana'], ['mes', 'Mes'], ['anio', 'Año']], cal: true })}</div></div>
+          <div id="bv-periodo"></div></div></div>
       <div data-panel="boveda:cuadres"><div class="card" id="bv-cuadres"></div></div>
     </div>`;
 
@@ -103,7 +113,7 @@ VIEWS['boveda'] = async (v) => {
       $('[data-tabs="boveda"] [data-tab="verif"]', v).click();
     });
     const tv = $('[data-tabs="boveda"] [data-tab="verif"]', v);
-    tv.innerHTML = `Por verificar${pend.length ? ` <span class="tab-n">${pend.length}</span>` : ''}`;
+    tv.innerHTML = `Transferencias${pend.length ? ` <span class="tab-n">${pend.length}</span>` : ''}`;
   };
 
   const pintaLibro = () => {
@@ -171,21 +181,81 @@ VIEWS['boveda'] = async (v) => {
     $('[data-cuadrar]', v).addEventListener('click', cuadrar);
   };
 
+  // Efectivo: lo que traen los vendedores (no se guarda en oficina) y el total del negocio
+  const pintaEfectivo = () => {
+    const vs = (t?.vendedores || []).slice().sort((a, b) => +b.en_poder - +a.en_poder);
+    const caja = +(t?.caja || 0);
+    const resto = caja - vs.reduce((s, x) => s + +x.en_poder, 0);
+    $('#bv-tot-n', v).innerHTML = cuenta(+d.saldo + caja);
+    $('#bv-tot-eq', v).innerHTML = `🏦 Banco <b>${money0(d.saldo)}</b> &nbsp;+&nbsp; 💵 Efectivo <b>${money0(caja)}</b>`;
+    $('#bv-ef', v).innerHTML = `<div class="bv-ef-h"><div><span class="bv-l">Efectivo con vendedores</span><b class="bv-ef-n">${cuenta(caja)}</b></div>
+        <span class="small muted">No se guarda en oficina: cada vendedor lo trae hasta que lo deposita al banco.</span></div>
+      ${vs.length ? `<div class="holders">${vs.map((x) => `<div class="holder"><span class="mini-ava">${avatar(x)}</span><span>${esc(x.nombre)}${+x.depositado ? `<small class="muted"> · depositó ${money0(x.depositado)} hoy</small>` : ''}</span><b>${money0(x.en_poder)}</b>
+        ${+x.en_poder > 0 ? `<a class="btn btn-sm btn-primary" href="#/caja?op=deposito&v=${esc(x.vendedor_id)}">🏧 Depositó</a>` : '<span class="small muted">✓</span>'}</div>`).join('')}
+        ${Math.abs(resto) > 0.5 ? `<div class="holder"><span class="mini-ava">?</span><span>Sin vendedor activo<small class="muted"> · efectivo de alguien que ya no vende o sin asignar</small></span><b>${money0(resto)}</b><span></span></div>` : ''}</div>`
+        : '<div class="empty">No hay vendedores activos</div>'}
+      ${(t?.movimientos || []).some((m) => m.cuenta === 'caja') ? `<details class="cb-box bv-ef-movs"><summary>💵 Movimientos del efectivo de hoy</summary>
+        ${tablaMovs(t.movimientos.filter((m) => m.cuenta === 'caja'), hoyRango(), 'hoy')}</details>` : ''}`;
+    animarNumeros(v);
+  };
+
+  // Transferencias de ventas que ya se confirmaron con la banca
+  let rConf = null, nConf = 0;
+  const cargarConf = async (r) => {
+    rConf = r; const yo = ++nConf;
+    $('#bv-conf-per', v).textContent = `· ${r.etiqueta}`;
+    const box = $('#bv-conf', v);
+    box.classList.add('cargando');
+    try {
+      const vs = (await API.rpc('ventas_de', { p_desde: r.desde, p_hasta: r.hasta }))
+        .filter((x) => !x.anulada && x.verificada && +x.pago_transfer + +x.extra > 0);
+      if (yo !== nConf) return;
+      const tot = vs.reduce((s, x) => s + +x.pago_transfer + +x.extra, 0);
+      box.innerHTML = vs.length ? `<div class="bv-sum bv-sum-2"><div><span>Confirmadas</span><b class="num">${vs.length}</b></div><div><span>Total</span><b class="num in-t">+${money0(tot)}</b></div></div>
+        <div class="bv-pend">${vs.map((x) => `<div class="bv-pi">
+          <div><b>${esc(x.cliente || 'Sin nombre')}</b><div class="small muted">${folio(x.id)} · ${esc(x.vendedor)} · ${fecha(x.fecha)}${x.referencia ? ` · ref ${esc(x.referencia)}` : ''}${x.verificada_fecha ? ` · ✓ ${fecha(x.verificada_fecha)}` : ''}</div></div>
+          <b class="num in-t">${money0(+x.pago_transfer + +x.extra)}</b><span class="badge b-ok">✓</span></div>`).join('')}</div>`
+        : `<div class="empty">No hay transferencias confirmadas ${r.hoy ? 'hoy' : 'en este periodo'}</div>`;
+    } catch (e) { if (yo === nConf) box.innerHTML = `<div class="alert alert-err">${esc(e.message)}</div>`; }
+    finally { if (yo === nConf) box.classList.remove('cargando'); }
+  };
+
+  // El banco en un periodo: con cuánto empezó, qué entró, qué salió y con cuánto cerró
+  let nPer = 0;
+  const cargarPeriodo = async (r) => {
+    const yo = ++nPer;
+    $('#bv-per2', v).textContent = `· ${r.etiqueta}`;
+    const box = $('#bv-periodo', v);
+    box.classList.add('cargando');
+    try {
+      const h = await API.rpc('tesoreria', { p_desde: r.desde, p_hasta: r.hasta });
+      if (yo !== nPer) return;
+      box.innerHTML = bancoCuadre(h.banco_periodo, r, true);
+    } catch (e) { if (yo === nPer) box.innerHTML = `<div class="alert alert-err">${esc(e.message)}</div>`; }
+    finally { if (yo === nPer) box.classList.remove('cargando'); }
+  };
+
   const cuadrar = () => formCuadreBanco(+d.saldo, { alListo: load });
   $('#bv-cuadrar', v).addEventListener('click', cuadrar);
 
   /* ---------- datos ---------- */
   async function load() {
     const h = hoyRango();
-    const [b, bh] = await Promise.all([
+    const [b, bh, tt] = await Promise.all([
       API.rpc('boveda', { p_desde: rango.desde, p_hasta: rango.hasta }),
       rango.hoy ? null : API.rpc('boveda', { p_desde: h.desde, p_hasta: h.hasta }),
+      API.rpc('tesoreria', { p_desde: h.desde, p_hasta: h.hasta }).catch(() => null),
     ]);
-    d = b;
+    d = b; t = tt;
     const mh = (bh || b).movs;
     d.hoy = { entro: mh.filter((m) => +m.monto > 0).reduce((x, m) => x + +m.monto, 0), salio: mh.filter((m) => +m.monto < 0).reduce((x, m) => x - +m.monto, 0) };
-    pintaArriba(); pintaLibro(); pintaVerif(); pintaCuadres();
+    pintaArriba(); pintaEfectivo(); pintaLibro(); pintaVerif(); pintaCuadres();
+    if (rConf) cargarConf(rConf);
   }
   bindRango($('.bv-libro-h', v), (r) => { rango = r; $('#bv-libro', v).classList.add('cargando'); load().finally(() => $('#bv-libro', v).classList.remove('cargando')); });
   await load();
+  const leerConf = bindRango($('.bv-conf-h', v), cargarConf);
+  cargarConf(leerConf());
+  const leerPer = bindRango($('.bv-per-h', v), cargarPeriodo);
+  cargarPeriodo(leerPer());
 };

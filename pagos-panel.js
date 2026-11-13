@@ -4,7 +4,7 @@
    · Pagos hechos en el periodo: a quién, de dónde salió (efectivo / banco / mixto), quién lo registró y si ya está confirmado.
    Un pago mixto o de varios envíos se muestra como UN solo pago con sus partes.
    Se usa en Finanzas y en Caja y banco: tarjetaPagos(contenedor, 'semana') */
-async function tarjetaPagos(box, def = 'semana', dias = {}) {
+async function tarjetaPagos(box, def = 'semana', dias = {}, { sinPorPagar = false } = {}) {
   if (!box) return;
   let pagos = [], debe = { comisiones: [], paqueteria: [] }, tipoF = 'todos', estado = 'todos', quien = '', rg = null, n = 0;
   box.innerHTML = `<div class="card gx px"><div class="card-head"><h2>💸 Comisiones y paquetería <span class="muted small" data-px-per></span></h2>
@@ -80,8 +80,8 @@ async function tarjetaPagos(box, def = 'semana', dias = {}) {
     });
     const ver = deTipo.filter((g) => (estado === 'todos' || (estado === 'pend' ? !g.confirmado : g.confirmado)) && (!quien || (g.para_id || '?') === quien));
     const sumT = (t) => suma(todos.filter((g) => g.tipo === t));
-    cuerpo.innerHTML = `${porPagarHTML()}
-      <div class="gx-sub" style="margin-top:18px">Pagos hechos <span class="muted small">${esc(rg.etiqueta.toLowerCase())}</span></div>
+    cuerpo.innerHTML = `${sinPorPagar ? '' : porPagarHTML()}
+      <div class="gx-sub" style="margin-top:${sinPorPagar ? 0 : 18}px">Pagos hechos <span class="muted small">${esc(rg.etiqueta.toLowerCase())}</span></div>
       ${todos.length ? `<div class="gx-k px-k">
         <div><span>Pagado</span><b>${money0(suma(todos))}</b><small>${plural(todos.length, 'pago', 'pagos')}</small></div>
         <div><span>🎁 Comisiones</span><b>${money0(sumT('pago_comision'))}</b><small>${plural(todos.filter((g) => g.tipo === 'pago_comision').length, 'pago', 'pagos')}</small></div>

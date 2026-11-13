@@ -1383,3 +1383,26 @@ body.arrastrando .cesta { border-color: var(--accent); background: var(--accent-
 @media (prefers-reduced-motion: reduce) { .bv-puerta, .bv-disco, .bv-in, .bv-acceso, .bv-acc-disco { transition: none !important; } }
 .bv-sum b.num { text-align: left; }
 @media (max-width: 760px) { .bv-caja { max-width: 260px; } }
+
+/* ---------- Reorganización: Bóveda con banco + efectivo, núcleo de salidas, Finanzas sin saldos ---------- */
+.bv-total { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px 18px; background: var(--brand); color: var(--brand-ink); border-radius: var(--r); padding: 16px 20px; margin-bottom: 18px; box-shadow: var(--sh-2); }
+.bv-total > div { display: grid; gap: 2px; }
+.bv-total-l { font-size: 11.5px; font-weight: 650; letter-spacing: .08em; text-transform: uppercase; opacity: .8; }
+.bv-total b#bv-tot-n { font: 700 34px/1.1 var(--serif); letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.bv-total-eq { font-size: 14px; opacity: .9; }
+.bv-parte-t { font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 6px 0 10px; }
+.bv-efectivo { margin-bottom: 22px; border-top: 4px solid var(--ok); }
+.bv-ef-h { display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 6px 16px; }
+.bv-ef-h > div { display: grid; gap: 4px; }
+.bv-ef-h .bv-l { color: var(--muted); }
+.bv-ef-n { font: 700 30px/1.1 var(--serif); font-variant-numeric: tabular-nums; }
+.bv-conf { margin-top: 14px; }
+.bv-sum.bv-sum-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.nucleo-sal { border-left: 4px solid var(--accent); }
+.nucleo-sal .seg { margin-bottom: 12px; }
+.nucleo-sal .card { box-shadow: none; border: 0; padding: 0; background: none; margin: 0; }
+.debe-sec { font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin: 14px 0 6px; }
+.fin-salidas .bq-r .bar { flex: 1; margin: 6px 12px 0; }
+.hero.hero-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (max-width: 560px) { .hero.hero-2 { grid-template-columns: 1fr; } }
+.fin-salidas a.bq-r { color: inherit; text-decoration: none; display: flex; align-items: center; }
