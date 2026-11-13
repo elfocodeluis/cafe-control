@@ -38,7 +38,8 @@ VIEWS['ventas'] = async (v, q) => {
   const extraSub = () => (extraN() ? `es ${admin ? `de ${esc(vend().nombre)}` : 'tuyo'} · no cuenta como venta` : 'Toca si el cliente te transfirió propina o servicio');
   const efectivoN = (t) => (metodo === 'efectivo' ? t : metodo === 'mixto' ? Math.max(0, +efMix || 0) : 0);
   const puedePaq = () => !!vend()?.envio_nacional;
-  const envio = () => (tipo === 'paqueteria' ? +(mun()?.precio || 0) : tipo === 'local' ? +perfil.envio_cobro_local : 0);
+  const envio = () => (tipo === 'paqueteria' ? +perfil.envio_cobro_paqueteria : tipo === 'local' ? +perfil.envio_cobro_local : 0); // lo que paga el cliente
+  const costoPaq = () => (tipo === 'paqueteria' ? +(mun()?.precio || 0) : 0); // lo que se le paga a la paquetería
   const opDe = (id) => catalogo.find((o) => o.opcion_id === +id);
   const invDe = (presId) => inv.find((i) => i.presentacion_id === presId)?.piezas || 0;
   const piezasLinea = (l) => { const o = opDe(l.opcion_id); return l.promo ? 3 * l.cantidad : l.cantidad * o.piezas; };
@@ -92,13 +93,13 @@ VIEWS['ventas'] = async (v, q) => {
       ${!hayStock ? `<div class="alert alert-warn">${admin ? `${esc(vend().nombre)} no tiene piezas. Entrégale producto en <a href="#/entregar?v=${vendId}">Producir y entregar</a>.` : 'No tienes piezas para vender. Pide producto en "Pedir producto".'}</div>` : ''}
       <div class="paso"><div class="paso-n">1</div><div class="paso-b"><div class="paso-t">¿Cómo se entrega?</div>
         <div class="tiles tiles-3" id="tipos">
-          ${[['tienda', '🏪', 'En tienda', 'Sin cargo'], ['local', '🛵', 'Envío local', 'Sin cargo'], ['paqueteria', '📦', 'Paquetería', tipo === 'paqueteria' && mun() ? `${esc(mun().nombre)} +${money0(mun().precio)}` : 'Según municipio · solo transferencia']].map(([k, e, t, s]) => {
+          ${[['tienda', '🏪', 'En tienda', 'Sin cargo'], ['local', '🛵', 'Envío local', 'Sin cargo'], ['paqueteria', '📦', 'Paquetería', tipo === 'paqueteria' && mun() ? `${esc(mun().nombre)} · cliente paga +${money0(perfil.envio_cobro_paqueteria)}` : `Cliente paga +${money0(perfil.envio_cobro_paqueteria)} · solo transferencia`]].map(([k, e, t, s]) => {
             const lock = k === 'paqueteria' && !puedePaq();
             return `<button type="button" class="tile ${tipo === k ? 'on' : ''}" data-t="${k}" ${lock ? 'disabled' : ''}>
               <span class="tile-e">${e}</span><span class="tile-t">${t}</span><span class="tile-s">${lock ? `${admin ? 'Actívalo en Usuarios' : 'No habilitado'}` : s}</span></button>`;
           }).join('')}
         </div></div></div>
-      ${tipo === 'paqueteria' ? `<div class="paso paso-mun ${munId ? '' : 'falta'}" id="pasomun"><div class="paso-n">2</div><div class="paso-b"><div class="paso-t">¿A qué municipio va? <span class="muted small" style="font-weight:400">el envío cuesta según el destino</span></div>
+      ${tipo === 'paqueteria' ? `<div class="paso paso-mun ${munId ? '' : 'falta'}" id="pasomun"><div class="paso-n">2</div><div class="paso-b"><div class="paso-t">¿A qué municipio va? <span class="muted small" style="font-weight:400">el cliente paga ${money0(perfil.envio_cobro_paqueteria)}; abajo, lo que cobra la paquetería</span></div>
         <div class="mun-grid" id="muns">${municipios.length ? municipios.map((m) => `<button type="button" class="mun ${m.id === munId ? 'on' : ''}" data-mun="${m.id}"><span>${esc(m.nombre)}</span><b>${money0(m.precio)}</b></button>`).join('') : '<div class="empty">No hay municipios. El admin los agrega en Precios.</div>'}</div>
       </div></div>` : ''}
       <div class="paso"><div class="paso-n">${tipo === 'paqueteria' ? 3 : 2}</div><div class="paso-b"><div class="paso-t">¿Qué se lleva? <span class="muted small" style="font-weight:400">${admin ? `stock de ${esc(vend().nombre)}` : 'tu stock'} · toca para agregar</span></div>
@@ -368,7 +369,7 @@ VIEWS['ventas'] = async (v, q) => {
     el.textContent = money0(t);
     el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump');
     const com = cart.length ? +perfil.comision_venta : 0;
-    const paq = tipo === 'paqueteria' ? envio() : 0;
+    const paq = costoPaq();
     const partes = [`Productos ${money0(productos())}`];
     if (env) partes.push(`envío${tipo === 'paqueteria' && mun() ? ` a ${esc(mun().nombre)}` : ''} +${money0(env)}`);
     if (d) partes.push(`descuento −${money0(d)}`);

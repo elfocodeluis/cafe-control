@@ -22,7 +22,8 @@ VIEWS['revendedores'] = async (v) => {
   const descuento = () => Math.round(productos() * pct()) / 100;
   const ahorro = () => Object.entries(cart).reduce((s, [id, c]) => s + c * (+opDe(id).precio - pu(id)), 0) + descuento();
   const mun = () => municipios.find((m) => m.id === munId);
-  const envio = () => (tipo === 'paqueteria' ? +(mun()?.precio || 0) : tipo === 'local' ? +datos.envio_local : 0);
+  const envio = () => (tipo === 'paqueteria' ? +(datos.envio_paqueteria ?? 100) : tipo === 'local' ? +datos.envio_local : 0); // lo que paga el cliente
+  const costoPaq = () => (tipo === 'paqueteria' ? +(mun()?.precio || 0) : 0); // lo que se le paga a la paquetería
   const total = () => productos() - descuento() + envio();
   const costoVenta = () => Object.entries(cart).reduce((s, [id, c]) => s + c * +opDe(id).costo, 0);
 
@@ -46,7 +47,7 @@ VIEWS['revendedores'] = async (v) => {
             <button type="button" class="chip" data-t="local">🛵 Envío local</button>
             <button type="button" class="chip" data-t="paqueteria">📦 Paquetería</button></div>
           <label class="field" id="rmun-w" hidden style="margin-top:12px"><span>Municipio de destino</span><select id="rmun"><option value="">Elige el municipio…</option>
-            ${municipios.map((m) => `<option value="${m.id}">${esc(m.nombre)} · ${money0(m.precio)}</option>`).join('')}</select></label>
+            ${municipios.map((m) => `<option value="${m.id}">${esc(m.nombre)} · paquetería cobra ${money0(m.precio)}</option>`).join('')}</select></label>
           <label class="field" style="margin-top:12px"><span>Nota <i class="muted">(opcional)</i></span><input id="rnota" maxlength="200"></label>
         </div>
       </div>
@@ -138,7 +139,7 @@ VIEWS['revendedores'] = async (v) => {
       ${envio() ? `<div class="bq-r"><span>Envío ${tipo === 'paqueteria' ? `· ${esc(mun()?.nombre || '')}` : 'local'}</span><b>${money0(envio())}</b></div>` : ''}
       <div class="bq-r fin"><span>Total</span><b>${money0(total())}</b></div>
       ${ahorro() > 0 ? `<div class="rev-ahorro">El revendedor ahorra ${money0(ahorro())} vs. precio al público</div>` : ''}
-      ${Object.keys(cart).length ? `<div class="small muted" style="margin-top:6px">Ganancia: <b style="color:${total() - envio() - costoVenta() >= 0 ? 'var(--ok)' : 'var(--err)'}">${money0(total() - envio() - costoVenta())}</b> sobre un costo de ${money0(costoVenta())}</div>` : ''}
+      ${Object.keys(cart).length ? `<div class="small muted" style="margin-top:6px">Ganancia: <b style="color:${total() - (tipo === 'paqueteria' ? costoPaq() : envio()) - costoVenta() >= 0 ? 'var(--ok)' : 'var(--err)'}">${money0(total() - (tipo === 'paqueteria' ? costoPaq() : envio()) - costoVenta())}</b> sobre un costo de ${money0(costoVenta())}</div>` : ''}
       ${bajo.length ? `<div class="small" style="color:var(--err);margin-top:6px">⚠️ ${bajo.map((id) => esc(opDe(id).descripcion)).join(', ')} queda abajo de su costo</div>` : ''}`;
     $('#rnotas', v).textContent = `Sin comisión · sale del inventario de ${adm()?.nombre || '—'} (lo que falte, del almacén)${metodo !== 'efectivo' && total() ? ` · ${money0(total() - ef)} por transferencia, queda por verificar` : ''}`;
     $('#rcobrar', v).disabled = !Object.keys(cart).length;

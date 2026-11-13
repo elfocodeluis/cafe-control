@@ -3,7 +3,7 @@
    ===================================================================== */
 const CFG_INFO = {
   comision_venta: ['🎁', 'Comisión por venta', 'Lo que gana el vendedor por cada venta (sin importar cuántos productos lleve). Se la queda al cobrar.'],
-  envio_cobro_paqueteria: ['📦', 'Envío por paquetería (lo paga el cliente)', 'Se suma al total cuando la venta es por paquetería.'],
+  envio_cobro_paqueteria: ['📦', 'Envío por paquetería (lo paga el cliente)', 'Siempre el mismo, vaya a donde vaya. Lo que cobra la paquetería se pone en cada municipio, abajo.'],
   envio_costo_paqueteria: ['🚚', 'Lo que cobra la paquetería', 'Se descuenta de cada venta por paquetería.'],
   envio_cobro_local: ['🛵', 'Envío local (lo paga el cliente)', 'Pon 0 si el envío local es gratis.'],
 };
@@ -11,7 +11,7 @@ const CFG_INFO = {
 VIEWS['catalogo'] = async (v) => {
   const [cat, cfg0, muns] = await Promise.all([API.rpc('catalogo_admin'), API.rpc('config_lista'), API.rpc('municipios_lista', { p_todos: true })]);
   muns.sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
-  const cfg = cfg0.filter((c) => !/_paqueteria$/.test(c.clave) && c.clave !== 'corte_dia_hora'); // la paquetería ahora cobra por municipio
+  const cfg = cfg0.filter((c) => c.clave !== 'envio_costo_paqueteria' && c.clave !== 'corte_dia_hora'); // lo que cobra la paquetería va por municipio
   const corte = cfg0.find((c) => c.clave === 'corte_dia_hora');
   v.innerHTML = `<div class="page-head"><div><h1>Precios</h1><div class="muted small">Cambia un precio y se guarda solo. Las ventas anteriores conservan su precio.</div></div>
       <div class="tools"><input type="search" id="buscar" placeholder="Buscar producto…" style="width:200px"><button class="btn" id="np">+ Producto nuevo</button></div></div>
@@ -22,7 +22,7 @@ VIEWS['catalogo'] = async (v) => {
     ${corte ? `<label class="cfg cfg-corte"><span class="cfg-e">🌙</span><span class="cfg-t">El día termina a las…</span>
       <span class="cfg-d">Lo que se registre después de medianoche y antes de esta hora cuenta para la noche anterior en reportes y cortes.</span>
       <select data-corte>${[0, 1, 2, 3, 4, 5, 6, 7, 8].map((h) => `<option value="${h}" ${+corte.valor === h ? 'selected' : ''}>${h === 0 ? '12:00 a.m. (medianoche)' : `${h}:00 a.m.`}</option>`).join('')}</select></label>` : ''}
-    <div class="sec-t">📍 Envío por paquetería según municipio <span class="muted small" style="font-weight:400">lo paga el cliente y es lo que se le paga a la paquetería</span></div>
+    <div class="sec-t">📍 Lo que cobra la paquetería según municipio <span class="muted small" style="font-weight:400">es lo que le pagamos a la paquetería · el cliente siempre paga la tarifa fija de arriba</span></div>
     <div class="mun-ed">${muns.map((m) => `<div class="mun-r ${m.activo ? '' : 'off'}" data-mid="${m.id}">
         <input class="mun-n" data-mf="nombre" value="${esc(m.nombre)}" aria-label="Municipio">
         <span class="money-in"><span>$</span><input type="number" min="0" step="any" data-mf="precio" value="${+m.precio}" inputmode="decimal"></span>
