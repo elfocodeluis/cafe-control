@@ -1535,3 +1535,9 @@ body.arrastrando .cesta { border-color: var(--accent); background: var(--accent-
 .cp-ley span { display: inline-flex; align-items: center; gap: 6px; }
 .cp-ley i { width: 10px; height: 10px; border-radius: 3px; }
 .cp-t { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 6px 12px; padding: 8px 12px; border-radius: 10px; background: var(--surface-2); }
+
+/* Caja: lo que espera verificación */
+.pp-aviso{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:9px 12px;margin-bottom:10px;border-radius:10px;background:color-mix(in srgb,var(--warn,#d97706) 12%,transparent);border:1px solid color-mix(in srgb,var(--warn,#d97706) 35%,transparent);font-size:.9rem}
+.pp-aviso .btn{margin-left:auto}
+.pp-esp{color:var(--warn,#b45309)}
+.pp-esp a{color:inherit;text-decoration:underline}

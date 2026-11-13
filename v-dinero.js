@@ -306,8 +306,9 @@ VIEWS['caja'] = async (v, q) => {
 
   const load = async () => {
     const r = hoyRango();
-    let admins;
-    [d, admins] = await Promise.all([API.rpc('tesoreria', { p_desde: r.desde, p_hasta: r.hasta }), API.rpc('retiros_admin', { p_desde: r.desde, p_hasta: r.hasta }).catch(() => [])]);
+    let admins, sinVerif;
+    [d, admins, sinVerif] = await Promise.all([API.rpc('tesoreria', { p_desde: r.desde, p_hasta: r.hasta }), API.rpc('retiros_admin', { p_desde: r.desde, p_hasta: r.hasta }).catch(() => []),
+      API.rpc('ventas_de', { p_desde: null, p_hasta: null, p_vendedor: null, p_pendientes: true }).catch(() => [])]);
     adminsCache = admins;
     const per = r.hoy ? 'hoy' : r.etiqueta.toLowerCase();
     const vs = d.vendedores;
@@ -318,6 +319,18 @@ VIEWS['caja'] = async (v, q) => {
     const maxG = Math.max(1, ...d.gastos.map((g) => +g.total));
     const paqVs = vs.filter((x) => x.envio_nacional || +x.paq.num);
     const totPorPagar = +pp.comisiones + +pp.paqueteria;
+    // lo que se va a deber en cuanto se verifiquen las transferencias que faltan
+    const espCom = {}, espPaq = { m: 0, n: 0 };
+    let espN = 0;
+    (sinVerif || []).filter((x) => !x.anulada && +x.pago_transfer + +x.extra > 0).forEach((x) => {
+      const c = +x.comision - Math.min(+x.comision, Math.max(+x.pago_efectivo, 0)) + +x.extra;
+      const e = x.metodo === 'transferencia' ? +x.envio_costo || 0 : 0;
+      if (c > 0) { const g = espCom[x.vendedor_id] ||= { m: 0, n: 0 }; g.m += c; g.n++; }
+      if (e > 0) { espPaq.m += e; espPaq.n++; }
+      if (c > 0 || e > 0) espN++;
+    });
+    const espTot = Object.values(espCom).reduce((t, g) => t + g.m, 0) + espPaq.m;
+    const espTxt = (g) => g && g.m ? ` · <span class="pp-esp">⏳ ${money0(g.m)} ${+g.n === 1 ? 'de 1 venta' : `de ${g.n} ventas`} esperando que <a href="#/boveda">verifiques la transferencia</a></span>` : '';
     const box = $('#cj', v);
     // proveedores con saldo, agrupados por nombre
     const provAb = [];
@@ -330,14 +343,15 @@ VIEWS['caja'] = async (v, q) => {
         <div class="card-head"><h2>🧾 Todo lo que se debe</h2><span class="badge ${totDebe ? 'b-warn' : 'b-ok'}">${totDebe ? `${money0(totDebe)} pendiente` : 'Todo pagado ✓'}</span></div>
         <div class="debe-sec">Vendedores y paquetería · ${money0(totPorPagar)}</div>
         <div class="small muted" style="margin-bottom:10px">Las ventas por transferencia caen completas al banco, así que ahí se le debe la comisión al vendedor y el envío a la paquetería (cuentan en cuanto verificas la transferencia).</div>
+        ${espTot ? `<div class="pp-aviso">⏳ <b>${money0(espTot)}</b> más se van a sumar aquí cuando verifiques ${espN === 1 ? '1 transferencia' : `${espN} transferencias`}. <a class="btn btn-sm" href="#/boveda">Ir a verificar →</a></div>` : ''}
         <div class="pp-list">
           ${vs.map((x) => `<div class="pp ${+x.comision_pendiente ? '' : 'ok'}"><span class="mini-ava">${avatar(x)}</span>
-            <div><b>Comisiones${+x.extra ? ' y extras' : ''} de ${esc(x.nombre)}</b><div class="small muted">${+x.comision_pendiente ? `de transferencias ya verificadas, sin pagar` : 'No se le debe nada'}${+x.extra ? ` · 🎁 extras ${esc(per)} ${money0(x.extra)} (${x.extra_num}) · <a href="#/ventas?v=${x.vendedor_id}">ver sus ventas</a>` : ''}${+x.comision_pagada ? ` · pagado ${esc(per)} ${money0(x.comision_pagada)}` : ''}</div></div>
+            <div><b>Comisiones${+x.extra ? ' y extras' : ''} de ${esc(x.nombre)}</b><div class="small muted">${+x.comision_pendiente ? `de transferencias ya verificadas, sin pagar` : espCom[x.vendedor_id] ? 'Todavía no se le debe' : 'No se le debe nada'}${espTxt(espCom[x.vendedor_id])}${+x.extra ? ` · 🎁 extras ${esc(per)} ${money0(x.extra)} (${x.extra_num}) · <a href="#/ventas?v=${x.vendedor_id}">ver sus ventas</a>` : ''}${+x.comision_pagada ? ` · pagado ${esc(per)} ${money0(x.comision_pagada)}` : ''}</div></div>
             <b class="pp-m">${money0(x.comision_pendiente)}</b>
             ${+x.comision_pendiente ? `<div class="pp-b"><button class="btn btn-sm ${+x.en_poder > 0 ? 'btn-primary' : ''}" data-pcom="${x.vendedor_id}" data-o="caja" ${+x.en_poder > 0 ? '' : 'disabled'}>💵 Descontar de su efectivo</button><button class="btn btn-sm ${+x.en_poder > 0 ? '' : 'btn-primary'}" data-pcom="${x.vendedor_id}" data-o="banco">🏦 Pagar del banco</button></div>` : '<span class="pp-b small muted">✓</span>'}
           </div>`).join('')}
           <div class="pp ${+pp.paqueteria ? '' : 'ok'}"><span class="mini-ava mini-of">📦</span>
-            <div><b>Paquetería</b><div class="small muted">${+pp.paqueteria ? `envíos ya cobrados y verificados, sin pagar` : 'No se le debe nada'}${+pg.paqueteria ? ` · pagado ${esc(per)} ${money0(pg.paqueteria)}` : ''}</div></div>
+            <div><b>Paquetería</b><div class="small muted">${+pp.paqueteria ? `envíos ya cobrados y verificados, sin pagar` : espPaq.m ? 'Todavía no se le debe' : 'No se le debe nada'}${espTxt(espPaq)}${+pg.paqueteria ? ` · pagado ${esc(per)} ${money0(pg.paqueteria)}` : ''}</div></div>
             <b class="pp-m">${money0(pp.paqueteria)}</b>
             ${+pp.paqueteria ? '<div class="pp-b"><button class="btn btn-sm btn-primary" data-op="pago_envio">Pagar</button></div>' : '<span class="pp-b small muted">✓</span>'}
           </div>
