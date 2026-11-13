@@ -1506,3 +1506,32 @@ body.arrastrando .cesta { border-color: var(--accent); background: var(--accent-
 @media print { .rp-resumen { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; } .rp-kpis.rp-kpis-4 { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; } .rp-cat { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
 .rp-resumen.rp-resumen-1 { grid-template-columns: minmax(0, 340px) !important; }
 .rp-resumen-1 .rp-k b { font-size: 26px; }
+
+/* ---------- Control de paquetes (Ventas › Equipo) ---------- */
+.tel-req { color: var(--warn) !important; font-weight: 600; }
+.cp { margin-top: 16px; }
+.cp-lista { display: grid; gap: 8px; }
+.cp-v { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px 14px; align-items: center; padding: 10px 12px; border-radius: 12px; background: var(--surface-2); }
+.cp-v.no_coincide { background: var(--err-soft); }
+.cp-v-a { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+.btn-wa { background: #25a35a; border-color: #25a35a; color: #fff; }
+.btn-wa:hover { background: #1e8a4b; color: #fff; }
+.cp-no { color: var(--err); }
+@media (max-width: 700px) { .cp-v { grid-template-columns: 1fr; } .cp-v-a { justify-content: flex-start; } }
+.cp-mz { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
+.cp-m { display: grid; gap: 6px; padding: 12px; border-radius: 14px; border: 1px solid var(--border); background: var(--surface); }
+.cp-m.mezcla { border-color: color-mix(in srgb, var(--warn) 55%, var(--border)); background: color-mix(in srgb, var(--warn) 6%, var(--surface)); }
+.cp-m.roja { border-color: color-mix(in srgb, var(--err) 55%, var(--border)); background: color-mix(in srgb, var(--err) 6%, var(--surface)); }
+.cp-m-h { display: flex; align-items: center; gap: 8px; }
+.cp-m-h .badge { margin-left: auto; }
+.cp-m .btn { justify-self: start; }
+.cp-bar { display: flex; height: 10px; border-radius: 99px; overflow: hidden; background: var(--surface-3); }
+.cp-bar i, .cp-ley i { display: block; height: 100%; }
+.cp-bar .s, .cp-ley .s { background: var(--brand-2); }
+.cp-bar .p, .cp-ley .p { background: var(--accent); }
+.cp-bar .t, .cp-ley .t { background: var(--info); }
+.cp-m-n { display: flex; flex-wrap: wrap; gap: 4px 10px; color: var(--muted); }
+.cp-ley { display: flex; gap: 14px; margin-top: 10px; }
+.cp-ley span { display: inline-flex; align-items: center; gap: 6px; }
+.cp-ley i { width: 10px; height: 10px; border-radius: 3px; }
+.cp-t { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 6px 12px; padding: 8px 12px; border-radius: 10px; background: var(--surface-2); }

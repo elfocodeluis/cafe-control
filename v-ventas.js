@@ -72,7 +72,7 @@ VIEWS['ventas'] = async (v, q) => {
     <div data-panel="ventas:pedidos" hidden><div class="card" id="pedidos"></div></div>
     <div data-panel="ventas:tablero" hidden><div id="dash"></div></div>
     <div data-panel="ventas:inv" hidden><div class="card"><div class="card-head"><h2>Inventario</h2><span class="muted small" id="invsum"></span></div><div id="invbody"></div></div></div>
-    ${admin ? '<div data-panel="ventas:equipo" hidden><div id="desemp"></div></div>' : ''}`;
+    ${admin ? '<div data-panel="ventas:equipo" hidden><div id="desemp"></div><div id="control-paq"></div></div>' : ''}`;
   const irTab = bindTabs(v, 'ventas', { recordar: !q.pend });
   $('#btn-exportar', v)?.addEventListener('click', () => abrirExportar(vendedores, vendId));
   if (q.pend) irTab('pedidos', false);
@@ -111,7 +111,7 @@ VIEWS['ventas'] = async (v, q) => {
       <div class="paso"><div class="paso-n">${tipo === 'paqueteria' ? 4 : 3}</div><div class="paso-b"><div class="paso-t">Cliente y pago</div>
         <div class="row">
           <label class="field"><span>Nombre del cliente</span><input id="cliente" list="dl-clientes" placeholder="Ej. Tienda Lupita" autocomplete="off"><datalist id="dl-clientes"></datalist></label>
-          <label class="field"><span>Teléfono <i class="muted">(opcional)</i></span><input id="telefono" type="tel" inputmode="tel" placeholder="10 dígitos"></label>
+          <label class="field"><span>Teléfono <i class="muted" id="tel-nota">(opcional)</i></span><input id="telefono" type="tel" inputmode="tel" placeholder="10 dígitos"></label>
         </div>
         <div class="tiles tiles-3" id="metodos" style="margin-top:12px">
           <button type="button" class="tile ${metodo === 'efectivo' ? 'on' : ''}" data-m="efectivo" ${tipo === 'paqueteria' ? 'disabled' : ''}><span class="tile-e">💵</span><span class="tile-t">Efectivo</span><span class="tile-s">${tipo === 'paqueteria' ? 'No aplica en paquetería' : 'Se cobra en mano'}</span></button>
@@ -344,6 +344,8 @@ VIEWS['ventas'] = async (v, q) => {
   }
   function pintarCarrito() {
     const box = $('#carrito', v);
+    const tn = $('#tel-nota', v);
+    if (tn) { const req = cart.some((l) => opDe(l.opcion_id)?.paquete); tn.textContent = req ? '(obligatorio: lleva Pack o 3×2)' : '(opcional)'; tn.classList.toggle('tel-req', req); }
     const pz = cart.reduce((s, l) => s + piezasLinea(l), 0);
     box.classList.toggle('llena', !!cart.length);
     box.innerHTML = `<div class="cesta-h"><span class="cesta-ico" id="cesta-ico">🛒${pz ? `<i>${pz}</i>` : ''}</span>
@@ -397,6 +399,10 @@ VIEWS['ventas'] = async (v, q) => {
     if (!cart.length) return toast('Agrega al menos un producto', true);
     if (!cliente) { $('#cliente', v).focus(); return toast('Escribe el nombre del cliente', true); }
     if (!metodo) return toast('Elige efectivo, transferencia o mixto', true);
+    if (cart.some((l) => opDe(l.opcion_id)?.paquete) && $('#telefono', v).value.replace(/\D/g, '').length < 10) {
+      $('#telefono', v).focus();
+      return toast('Para vender Pack 28 g o 3×2 escribe el teléfono del cliente (10 dígitos)', true);
+    }
     // en este navegador se entró con otra cuenta en otra pestaña: no registrar a nombre equivocado
     if (await API.usuarioId().catch(() => ME.id) !== ME.id) {
       toast('En este navegador se abrió otra cuenta. Recargando…', true);
@@ -570,6 +576,7 @@ VIEWS['ventas'] = async (v, q) => {
     pintarNueva();
     pintarLado(r);
     pintarDesemp(r);
+    if (admin) pintarControlPaquetes($('#control-paq', v), r, { vigente: () => yo === cargaN }).catch((e) => console.error(e));
     pintarInventario();
     tableroVendedor($('#dash', v), { vendId, r, p: panel.find((x) => x.vendedor_id === vendId), inv, admin, recargar: cargarTodo, vigente: () => yo === cargaN }).catch((e) => console.error(e));
     await pintarPedidos(r);
