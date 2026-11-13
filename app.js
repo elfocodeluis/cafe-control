@@ -873,7 +873,7 @@ function ventaHTML(v, admin) {
       +v.extra && !v.anulada ? `<b>Extra para el vendedor: ${money(v.extra)}</b> (cliente transfirió ${money(pagoTr(v))})` : '',
       +v.sobrante && !v.anulada ? `<b>Transfirió ${money(v.sobrante)} de más · del negocio</b>` : '',
       v.metodo_original ? `Se registró como ${esc(v.metodo_original)}` : '',
-      admin && +v.envio_costo ? `Paquetería: ${money(v.envio_costo)}` : '',
+      admin && +v.envio_costo ? `Paquetería: ${money(v.envio_costo)}${+v.envio_cobro > +v.envio_costo ? ` · <b>sobran ${money0(v.envio_cobro - v.envio_costo)} del envío para embalaje (del negocio)</b>` : ''}` : '',
       admin && !v.anulada ? `<b>Queda: ${money(v.total - (+v.comision || 0) - (+v.envio_costo || 0))}</b>` : '',
       v.telefono ? `Tel: ${esc(v.telefono)}` : '',
       v.referencia ? `Ref: ${esc(v.referencia)}` : '',

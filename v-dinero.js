@@ -55,6 +55,7 @@ function bloqueVentas(box, d, r) {
     ['Comisiones de vendedores', -vt.comisiones, 'neg', ''],
     ['Envíos cobrados al cliente', +vt.envio_cobro, 'pos', ''],
     ['Pagado a paquetería', -vt.envio_costo, 'neg', ''],
+    ...(+vt.envio_cobro - vt.envio_costo > 0 ? [['Sobrante de envíos · para embalaje', vt.envio_cobro - vt.envio_costo, 'sub', 'El cliente siempre paga la tarifa fija de envío; lo que no se le paga a la paquetería se queda en el banco como dinero del negocio, para cajas, cinta y durex']] : []),
     ['Gastos operativos', -d.gastos, 'neg', ''],
     ...(merma ? [['Merma de producción', -merma, 'neg', 'Café que sobró al producir y no alcanzó para una pieza']] : []),
     ['Utilidad neta', neta, 'tot', 'Lo que realmente nos queda'],
