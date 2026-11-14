@@ -1541,3 +1541,9 @@ body.arrastrando .cesta { border-color: var(--accent); background: var(--accent-
 .pp-aviso .btn{margin-left:auto}
 .pp-esp{color:var(--warn,#b45309)}
 .pp-esp a{color:inherit;text-decoration:underline}
+
+/* Reporte: separador por día */
+.rp-t tr.rp-dia td { background: #f3ece3; border-bottom: 1px solid #e4d9cc; padding: 7px 8px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.rp-t tr.rp-dia td b { color: #5b3a26; font-size: 12px; }
+.rp-t tr.rp-dia td span { float: right; color: #7c6c60; font-size: 11px; }
+.rp-t tbody tr.rp-dia:not(:first-child) td { border-top: 14px solid #fff; }

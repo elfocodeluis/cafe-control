@@ -60,13 +60,17 @@ async function armarReporte(vend, r) {
   const metodo = (v) => (+v.pago_efectivo + +v.pago_transfer + +v.extra <= 0 ? (v.metodo === 'efectivo' ? 'Efectivo' : v.metodo === 'mixto' ? 'Mixto' : 'Transferencia')
     : v.metodo === 'mixto' || (+v.pago_efectivo > 0 && +v.pago_transfer > 0) ? 'Mixto' : +v.pago_transfer > 0 ? 'Transferencia' : 'Efectivo');
   const prod = (v) => (v.items || []).map((i) => `${i.cantidad}× ${esc(i.descripcion)}${i.promo ? ' (3×2)' : ''}`).join('<br>');
-  const fRep = (iso) => new Date(iso).toLocaleString('es-MX', { timeZone: TZ, day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
+  const fRep = (iso) => new Date(iso).toLocaleString('es-MX', { timeZone: TZ, hour: 'numeric', minute: '2-digit' });
   const fechas = (() => {
     const f = (d) => new Date(d).toLocaleDateString('es-MX', { timeZone: TZ, weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
     const ult = new Date(new Date(r.hasta).getTime() - 1);
     const a = f(new Date(new Date(r.desde).getTime() + 6 * 36e5)), b = f(new Date(ult.getTime() - CORTE_H * 36e5));
     return a === b ? a : `${a} al ${b}`;
   })();
+  // ventas agrupadas por día de operación, de la más vieja a la más nueva
+  const porDia = [];
+  vs.slice().reverse().forEach((v) => { const d = diaMX(v.fecha); const g = porDia.at(-1); if (g && g[0] === d) g[1].push(v); else porDia.push([d, [v]]); });
+  const diaTxt = (d) => { const t = new Date(`${d}T18:00:00Z`).toLocaleDateString('es-MX', { timeZone: TZ, weekday: 'long', day: 'numeric', month: 'long' }); return t.charAt(0).toUpperCase() + t.slice(1); };
   const folioRep = `R-${diaMX().replace(/-/g, '')}-${String(vend.usuario || vend.nombre || '').slice(0, 3).toUpperCase()}`;
 
   return `
@@ -76,7 +80,6 @@ async function armarReporte(vend, r) {
   </header>
 
   <section class="rp-quien">
-    <span class="rp-ava">${avatar(vend)}</span>
     <div><span class="rp-l">Vendedor</span><b class="rp-nom">${esc(vend.nombre)}</b><span class="rp-per">${esc(r.etiqueta)} · ${esc(fechas)}</span></div>
   </section>
 
@@ -96,10 +99,11 @@ async function armarReporte(vend, r) {
 
   <section class="rp-sec">
     <h3>Tus ventas, una por una</h3>
-    ${vs.length ? `<table class="rp-t"><thead><tr><th>Venta</th><th>Fecha</th><th>Cliente</th><th>Productos</th><th>Pago</th><th class="n">Total</th><th class="n">Efectivo</th><th class="n">Transf.</th><th class="n">Comisión</th></tr></thead><tbody>
-      ${vs.slice().reverse().map((v) => `<tr><td><b>${folio(v.id)}</b></td><td>${fRep(v.fecha)}</td><td>${esc(v.cliente || '—')}${v.tipo === 'paqueteria' ? `<div class="rp-mut">📦 ${esc(v.municipio || 'paquetería')}</div>` : ''}</td>
+    ${vs.length ? `<table class="rp-t"><thead><tr><th>Venta</th><th>Hora</th><th>Cliente</th><th>Productos</th><th>Pago</th><th class="n">Total</th><th class="n">Efectivo</th><th class="n">Transf.</th><th class="n">Comisión</th></tr></thead><tbody>
+      ${porDia.map(([dia, lista]) => `<tr class="rp-dia"><td colspan="9"><b>${esc(diaTxt(dia))}</b><span>${lista.length} ${lista.length === 1 ? 'venta' : 'ventas'} · ${money0(lista.reduce((t, v) => t + +v.total, 0))}</span></td></tr>
+      ${lista.map((v) => `<tr><td><b>${folio(v.id)}</b></td><td>${fRep(v.fecha)}</td><td>${esc(v.cliente || '—')}${v.tipo === 'paqueteria' ? `<div class="rp-mut">📦 ${esc(v.municipio || 'paquetería')}</div>` : ''}</td>
         <td>${prod(v)}</td><td>${metodo(v)}${+v.pago_transfer + +v.extra > 0 ? `<div class="rp-mut">${v.verificada ? '✓ confirmada' : 'por confirmar'}${v.referencia ? ` · ref ${esc(v.referencia)}` : ''}</div>` : ''}</td>
-        <td class="n"><b>${money0(v.total)}</b></td><td class="n">${+v.pago_efectivo ? money0(v.pago_efectivo) : '—'}</td><td class="n">${+v.pago_transfer + +v.extra ? money0(+v.pago_transfer + +v.extra) : '—'}</td><td class="n">${money0(v.comision)}</td></tr>`).join('')}
+        <td class="n"><b>${money0(v.total)}</b></td><td class="n">${+v.pago_efectivo ? money0(v.pago_efectivo) : '—'}</td><td class="n">${+v.pago_transfer + +v.extra ? money0(+v.pago_transfer + +v.extra) : '—'}</td><td class="n">${money0(v.comision)}</td></tr>`).join('')}`).join('')}
       </tbody><tfoot><tr><td colspan="5">${vs.length} ${vs.length === 1 ? 'venta' : 'ventas'}</td><td class="n">${money0(tot('total'))}</td><td class="n">${money0(tot('pago_efectivo'))}</td><td class="n">${money0(trTot)}</td><td class="n">${money0(tot('comision'))}</td></tr></tfoot></table>`
       : '<div class="rp-vacio">Sin ventas en este periodo.</div>'}
   </section>
