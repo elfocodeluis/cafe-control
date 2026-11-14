@@ -80,7 +80,7 @@ async function armarReporte(vend, r) {
   </header>
 
   <section class="rp-quien">
-    <div><span class="rp-l">Vendedor</span><b class="rp-nom">${esc(vend.nombre)}</b><span class="rp-per">${esc(r.etiqueta)} · ${esc(fechas)}</span></div>
+    <div><b class="rp-nom">${esc(vend.nombre)}</b><span class="rp-per">${esc(r.etiqueta)} · ${esc(fechas)}</span></div>
   </section>
 
   <section class="rp-resumen rp-resumen-1">
@@ -88,7 +88,7 @@ async function armarReporte(vend, r) {
   </section>
 
   <section class="rp-sec">
-    <h3>Lo que vendiste</h3>
+    <h3>Resumen de ventas</h3>
     <div class="rp-kpis rp-kpis-4">
       <div><span>🧾 Ventas</span><b>${vs.length}</b><small>${fnum(piezas)} piezas</small></div>
       <div><span>💵 Cobrado en efectivo</span><b>${money0(efNeto)}</b><small>ya sin tu comisión · lo traes tú</small></div>
@@ -98,7 +98,7 @@ async function armarReporte(vend, r) {
   </section>
 
   <section class="rp-sec">
-    <h3>Tus ventas, una por una</h3>
+    <h3>Ventas</h3>
     ${vs.length ? `<table class="rp-t"><thead><tr><th>Venta</th><th>Hora</th><th>Cliente</th><th>Productos</th><th>Pago</th><th class="n">Total</th><th class="n">Efectivo</th><th class="n">Transf.</th><th class="n">Comisión</th></tr></thead><tbody>
       ${porDia.map(([dia, lista]) => `<tr class="rp-dia"><td colspan="9"><b>${esc(diaTxt(dia))}</b><span>${lista.length} ${lista.length === 1 ? 'venta' : 'ventas'} · ${money0(lista.reduce((t, v) => t + +v.total, 0))}</span></td></tr>
       ${lista.map((v) => `<tr><td><b>${folio(v.id)}</b></td><td>${fRep(v.fecha)}</td><td>${esc(v.cliente || '—')}${v.tipo === 'paqueteria' ? `<div class="rp-mut">📦 ${esc(v.municipio || 'paquetería')}</div>` : ''}</td>
@@ -123,7 +123,6 @@ async function armarReporte(vend, r) {
     </div>
   </section>
 
-  <section class="rp-nota">Cualquier duda con este reporte, lo revisamos juntos.</section>
 `;
 }
 
