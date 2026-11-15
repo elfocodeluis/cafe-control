@@ -132,7 +132,8 @@ input, select, textarea, .side, .top, .tabbar {
   color: var(--text);
 }
 .chat-lista { background: var(--glass-solid); }
-.btn-primary, .btn.btn-rojo, .btn.btn-wa, .kpi.hl, .hero-k.hl { color: #fff; }
+.btn-primary, .btn.btn-rojo, .btn.btn-wa, .kpi.hl, .hero-k.hl, .dk-i.dk-ef { color: #fff; }
+.dk-i.dk-ef .dk-l, .dk-i.dk-ef .dk-s { color: #fff; opacity: .88; }
 /* tarjetas y avisos con tinte: el tinte va encima del vidrio, no sobre el fondo de pantalla */
 .kpi.warn { background: linear-gradient(180deg, var(--warn-soft), transparent 72%), var(--glass); }
 .dk-i.warn { background: linear-gradient(180deg, var(--warn-soft), transparent), var(--glass-thin); }
