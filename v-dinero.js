@@ -72,6 +72,7 @@ function bloqueVentas(box, d, r) {
       ${kpi('Promo 3×2', `${cuenta(d.promo.piezas_gratis, 'n')} pz`, +d.promo.piezas_gratis ? `regaladas ${per} · nos costaron ${money0(d.promo.costo)}` : `sin promociones ${per}`, { info: 'Piezas de 14 g que se regalaron con la promoción 3×2 (viernes a domingo).' })}
       ${kpi('Compras al almacén', cuenta(d.compras), 'Mercancía que entró (a costo), pagada o a deuda', { href: '#/almacen', info: 'El valor del café, cápsulas y filtros que se metieron al almacén en este periodo.' })}
     </div>
+    ${d.crecimiento ? '<div id="crec"></div>' : ''}
     <div class="card">
       <div class="card-head"><h2>¿Cuánto ganamos ${per}?</h2><span class="badge ${neta >= 0 ? 'b-ok' : 'b-err'}">margen ${fnum(margen, 1)}%</span></div>
       <div class="wf">${wf.map(([l, n, k, ex]) => `<div class="wf-r wf-${k}">
@@ -81,12 +82,16 @@ function bloqueVentas(box, d, r) {
     </div>
     <div class="grid2">
       <div class="card"><h2>Lo más vendido ${per}</h2>${tablaPorProducto(d.por_producto.map((p) => ({ ...p, total: +p.total })))}</div>
-      <div class="card"><div class="card-head"><h2>Merma</h2><span class="muted small"><b>${fnum(d.merma.gramos, 1)} g</b> · ${money0(d.merma.costo)}</span></div>
-        <div class="small muted" style="margin-bottom:8px">Café que sobró al producir y no alcanzó para una pieza.</div>
+      ${d.clientes_top ? clientesTopHTML(d.clientes_top, per) : `<div class="card"><div class="card-head"><h2>Merma</h2><span class="muted small"><b>${fnum(d.merma.gramos, 1)} g</b> · ${money0(d.merma.costo)}</span></div>
         ${d.merma.detalle.length ? `<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Fecha</th><th>Producto</th><th class="num">Merma</th><th class="num">Costo</th></tr></thead><tbody>
           ${d.merma.detalle.map((m) => `<tr><td class="small">${fecha(m.fecha)}<div class="muted">${esc(m.vendedor)}</div></td><td>${esc(m.sku)}</td><td class="num">${fnum(m.merma, 1)} g</td><td class="num">${money(m.costo)}</td></tr>`).join('')}
-        </tbody></table></div>` : `<div class="empty">Sin merma ${per} ✓</div>`}</div>
+        </tbody></table></div>` : `<div class="empty">Sin merma ${per} ✓</div>`}</div>`}
     </div>`;
+  if (d.crecimiento) panelCrecimiento($('#crec', box), d.crecimiento);
+  $$('[data-cli]', box).forEach((b) => b.addEventListener('click', () => { const c = d.clientes_top[+b.dataset.cli]; modal(`<h2>${esc(c.nombre)}</h2>
+    <div class="muted">${c.telefono ? esc(c.telefono) + ' · ' : ''}${c.revendedor ? 'revendedor · ' : ''}le vende ${esc(c.vendedor || '—')}</div>
+    <div class="kpis" style="margin:14px 0">${kpi('Gastó', money0(c.total), per)}${kpi('Compras', c.compras, `${c.historico} desde siempre`)}${kpi('Piezas', fnum(c.piezas))}</div>
+    <div class="small muted">Primera compra del periodo: ${fecha(c.primera)} · última: ${fecha(c.ultima)}</div>`); }));
   $('[data-kpi=envios]', box)?.addEventListener('click', () => modal(`<h2>Envíos nacionales · ${esc(r.etiqueta)}</h2>
     <div class="muted small">Cada venta por paquetería: el cliente paga el producto + el envío de su municipio por transferencia; se paga la paquetería y la comisión del vendedor.</div>
     ${d.envios_lista.length ? `<div class="tbl-wrap" style="margin-top:12px"><table class="tbl"><thead><tr><th>Folio</th><th>Cliente</th><th class="num">Cobrado</th><th class="num">Paquetería</th><th class="num">Vendedor</th><th class="num">Queda</th></tr></thead><tbody>
@@ -106,6 +111,128 @@ function bloqueVentas(box, d, r) {
       : '<div class="empty">Sin gastos en este periodo</div>'}
       ${r.hoy ? '<div class="modal-actions"><a class="btn btn-primary" href="#/caja?op=gasto" data-close>+ Registrar gasto</a></div>' : ''}`, true);
   });
+}
+
+// Clientes que más compran en el periodo (por lo que gastan) y los que vuelven más seguido
+function clientesTopHTML(lista, per) {
+  if (!lista.length) return `<div class="card"><div class="card-head"><h2>⭐ Clientes que más compran</h2></div><div class="empty">Sin clientes con nombre ${per}</div></div>`;
+  const max = Math.max(1, ...lista.map((c) => +c.total));
+  const frec = [...lista].sort((a, b) => b.compras - a.compras || b.total - a.total)[0];
+  const medalla = ['🥇', '🥈', '🥉'];
+  return `<div class="card cli-top"><div class="card-head"><h2>⭐ Clientes que más compran</h2><span class="muted small">${per}</span></div>
+    ${frec && frec.compras > 1 ? `<div class="cli-frec">🔁 El que vuelve más seguido: <b>${esc(frec.nombre)}</b> · ${frec.compras} compras ${per}${frec.historico > frec.compras ? ` (${frec.historico} desde siempre)` : ''}</div>` : ''}
+    <div class="cli-list">${lista.slice(0, 8).map((c, i) => `<button type="button" class="cli-r" data-cli="${i}">
+      <span class="cli-n">${medalla[i] || i + 1}</span>
+      <span class="cli-i"><b>${esc(c.nombre)}</b><small>${c.compras} ${c.compras === 1 ? 'compra' : 'compras'} · ${fnum(c.piezas)} pz${c.historico > c.compras ? ` · ${c.historico} en total` : ''}${c.revendedor ? ' · revendedor' : ''}</small>
+        <span class="cli-bar"><i style="width:${(c.total / max) * 100}%"></i></span></span>
+      <b class="cli-t">${money0(c.total)}</b></button>`).join('')}</div></div>`;
+}
+
+// Préstamos y retiros de administradores: quién ha tomado dinero del banco (siempre) y en el periodo
+function retirosHTML(todo, per, perRet) {
+  const filas = todo.map((a) => {
+    const p = perRet.find((x) => x.id === a.id) || {};
+    const tomado = +a.prestamos + +a.sueldos + +a.otros;
+    const enPer = +(p.prestamos || 0) + +(p.sueldos || 0) + +(p.otros || 0);
+    return { a, tomado, enPer };
+  }).filter((f) => f.tomado || +f.a.prestamo_pendiente || +f.a.devoluciones);
+  const max = Math.max(1, ...filas.map((f) => f.tomado));
+  return `<div class="card ret-card" style="margin-top:16px"><div class="card-head"><h2>🏦 Préstamos y retiros</h2><a class="btn btn-sm" href="#/caja?op=retiro_admin">+ Registrar</a></div>
+    <div class="small muted" style="margin:-4px 0 10px">Dinero que cada administrador ha tomado del banco: préstamos, sueldos y otros retiros.</div>
+    ${filas.length ? `<div class="ret-list">${filas.map(({ a, tomado, enPer }) => `<div class="ret-r">
+      <span class="mini-ava">${avatar(a)}</span>
+      <div class="ret-i"><b>${esc(a.nombre)}</b>
+        <span class="ret-bar"><i style="width:${(tomado / max) * 100}%"></i></span>
+        <small>${[+a.prestamos ? `🤝 préstamos ${money0(a.prestamos)}` : '', +a.sueldos ? `💼 sueldos ${money0(a.sueldos)}` : '', +a.otros ? `🏦 otros ${money0(a.otros)}` : '', +a.devoluciones ? `↩️ devolvió ${money0(a.devoluciones)}` : ''].filter(Boolean).join(' · ')}</small></div>
+      <div class="ret-m"><b>${money0(tomado)}</b><small>${+a.prestamo_pendiente > 0 ? `<span style="color:var(--warn)">debe ${money0(a.prestamo_pendiente)}</span>` : 'no debe'}${enPer ? ` · ${money0(enPer)} ${per}` : ''}</small></div></div>`).join('')}
+      <div class="ret-r ret-tot"><span></span><div class="ret-i"><b>Total tomado</b></div><div class="ret-m"><b>${money0(filas.reduce((s, f) => s + f.tomado, 0))}</b><small>${money0(filas.reduce((s, f) => s + +f.a.prestamo_pendiente, 0))} de préstamos por devolver</small></div></div></div>`
+    : '<div class="empty">Nadie ha tomado dinero del banco</div>'}</div>`;
+}
+
+// ---------- Crecimiento del negocio: semanas o meses, tendencia y los días que más se vende ----------
+const DSEM = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+const dUTC = (k) => new Date(k + 'T12:00:00Z');
+const kDia = (dt) => dt.toISOString().slice(0, 10);
+const lunesDe = (k) => { const d = dUTC(k); d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7)); return kDia(d); };
+const pctTxt = (a, b) => (b > 0 ? `${a >= b ? '▲' : '▼'} ${fnum(Math.abs((a / b - 1) * 100), 0)}%` : a > 0 ? 'nuevo' : '—');
+function panelCrecimiento(box, c) {
+  if (!box) return;
+  const dias = c.dias.map((x) => ({ k: String(x.dia).slice(0, 10), t: +x.total, n: +x.num, u: +x.utilidad, c: +x.clientes }));
+  if (!dias.length) { box.innerHTML = '<div class="card crec"><h2>📈 Crecimiento del negocio</h2><div class="empty">Todavía no hay ventas</div></div>'; return; }
+  const hoy = String(c.hoy).slice(0, 10);
+  const porDia = Object.fromEntries(dias.map((x) => [x.k, x]));
+  const suma = (desde, hasta) => { let t = 0, n = 0; for (const x of dias) if (x.k >= desde && x.k <= hasta) { t += x.t; n += x.n; } return { t, n }; };
+  const masD = (k, n) => { const d = dUTC(k); d.setUTCDate(d.getUTCDate() + n); return kDia(d); };
+  // comparaciones justas: lo que va de esta semana/mes contra los mismos días del anterior
+  const lun = lunesDe(hoy), diaSem = (dUTC(hoy).getUTCDay() + 6) % 7;
+  const sem = suma(lun, hoy), semAnt = suma(masD(lun, -7), masD(lun, -7 + diaSem));
+  const mesIni = hoy.slice(0, 8) + '01', dMes = +hoy.slice(8, 10);
+  const mAnt = new Date(Date.UTC(+hoy.slice(0, 4), +hoy.slice(5, 7) - 2, 1)), mAntIni = kDia(mAnt);
+  const mAntFin = kDia(new Date(Date.UTC(mAnt.getUTCFullYear(), mAnt.getUTCMonth(), Math.min(dMes, new Date(Date.UTC(mAnt.getUTCFullYear(), mAnt.getUTCMonth() + 1, 0)).getUTCDate()))));
+  const mes = suma(mesIni, hoy), mesAnt = suma(mAntIni, mAntFin);
+  const u30 = suma(masD(hoy, -29), hoy), p30 = suma(masD(hoy, -59), masD(hoy, -30));
+  const total = dias.reduce((s, x) => s + x.t, 0);
+  const primero = dias[0].k;
+  // días de la semana (últimos 90 días): promedio por día que se abrió
+  const ds = DSEM.map(() => ({ t: 0, n: 0, d: 0 }));
+  for (let k = masD(hoy, -89); k <= hoy; k = masD(k, 1)) { if (k < primero) continue; const w = (dUTC(k).getUTCDay() + 6) % 7, x = porDia[k]; ds[w].d++; if (x) { ds[w].t += x.t; ds[w].n += x.n; } }
+  const prom = ds.map((x) => (x.d ? x.t / x.d : 0)), maxP = Math.max(1, ...prom), mejorW = prom.indexOf(Math.max(...prom));
+  const top = [...dias].sort((a, b) => b.t - a.t).slice(0, 5);
+  let modo = 'sem';
+  const serie = () => {
+    const G = {};
+    dias.forEach((x) => { const k = modo === 'sem' ? lunesDe(x.k) : x.k.slice(0, 7); (G[k] ||= { k, t: 0, n: 0, u: 0 }); G[k].t += x.t; G[k].n += x.n; G[k].u += x.u; });
+    // rellena los huecos para que la línea de tiempo sea continua
+    const out = [];
+    if (modo === 'sem') { for (let k = lunesDe(primero); k <= lun; k = masD(k, 7)) out.push(G[k] || { k, t: 0, n: 0, u: 0 }); }
+    else { let d = dUTC(primero.slice(0, 8) + '01'); const fin = hoy.slice(0, 7); while (kDia(d).slice(0, 7) <= fin) { const k = kDia(d).slice(0, 7); out.push(G[k] || { k, t: 0, n: 0, u: 0 }); d = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1)); } }
+    return out.slice(-12);
+  };
+  const etiqueta = (g) => (modo === 'sem' ? `${+g.k.slice(8, 10)} ${MESES[+g.k.slice(5, 7) - 1]}` : `${MESES[+g.k.slice(5, 7) - 1]}${g.k.slice(2, 4) !== hoy.slice(2, 4) ? ' ' + g.k.slice(2, 4) : ''}`);
+  const grafica = () => {
+    const pts = serie(), n = pts.length, W = 640, H = 230, pl = 8, pr = 8, pt = 26, pb = 30;
+    const max = Math.max(1, ...pts.map((g) => g.t)), bw = (W - pl - pr) / n;
+    const y = (v) => pt + (H - pt - pb) * (1 - v / max);
+    // tendencia: regresión lineal sobre los periodos completos
+    const xs = pts.map((_, i) => i), m = n > 1 ? (() => { const mx = (n - 1) / 2, my = pts.reduce((s, g) => s + g.t, 0) / n; let a = 0, b = 0; pts.forEach((g, i) => { a += (i - mx) * (g.t - my); b += (i - mx) ** 2; }); const sl = b ? a / b : 0; return { sl, b0: my - sl * mx }; })() : null;
+    const linea = pts.map((g, i) => `${i ? 'L' : 'M'}${(pl + bw * i + bw / 2).toFixed(1)} ${y(g.u > 0 ? g.u : 0).toFixed(1)}`).join(' ');
+    return `<svg class="crec-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="Ventas por ${modo === 'sem' ? 'semana' : 'mes'}">
+      ${[0.25, 0.5, 0.75, 1].map((f) => `<line x1="${pl}" x2="${W - pr}" y1="${y(max * f)}" y2="${y(max * f)}" class="crec-grid"/>`).join('')}
+      ${pts.map((g, i) => { const x = pl + bw * i + bw * 0.16, w = bw * 0.68, ult = i === n - 1, prev = pts[i - 1]; return `<g class="crec-b ${ult ? 'ult' : ''}"><title>${etiqueta(g)}: ${money0(g.t)} · ${g.n} ventas · utilidad ${money0(g.u)}${prev ? ' · ' + pctTxt(g.t, prev.t) + ' vs anterior' : ''}</title>
+        <rect x="${x.toFixed(1)}" y="${y(g.t).toFixed(1)}" width="${w.toFixed(1)}" height="${Math.max(0, H - pb - y(g.t)).toFixed(1)}" rx="6"/>
+        ${g.t ? `<text x="${(x + w / 2).toFixed(1)}" y="${(y(g.t) - 7).toFixed(1)}" class="crec-v">${g.t >= 1000 ? fnum(g.t / 1000, 1) + 'k' : fnum(g.t)}</text>` : ''}
+        <text x="${(x + w / 2).toFixed(1)}" y="${H - 10}" class="crec-x">${etiqueta(g)}</text></g>`; }).join('')}
+      <path d="${linea}" class="crec-u"/>
+      ${m && n > 2 ? `<line x1="${pl + bw / 2}" x2="${pl + bw * (n - 0.5)}" y1="${y(Math.max(0, m.b0))}" y2="${y(Math.max(0, m.b0 + m.sl * (n - 1)))}" class="crec-tend"/>` : ''}
+    </svg>`;
+  };
+  const tarjeta = (l, v, cmp, sub) => `<div class="crec-k"><span>${l}</span><b>${v}</b><small class="${cmp.startsWith('▲') ? 'up' : cmp.startsWith('▼') ? 'down' : ''}">${cmp}</small><i>${sub}</i></div>`;
+  const pinta = () => {
+    const pts = serie(), ult = pts[pts.length - 1], ant = pts[pts.length - 2];
+    box.innerHTML = `<div class="card crec">
+      <div class="card-head"><h2>📈 Crecimiento del negocio</h2>
+        <div class="seg seg-sm" data-crec>${[['sem', 'Semanas'], ['mes', 'Meses']].map(([k, l]) => `<button type="button" data-m="${k}" class="${modo === k ? 'on' : ''}">${l}</button>`).join('')}</div></div>
+      <div class="crec-ks">
+        ${tarjeta('Esta semana', money0(sem.t), pctTxt(sem.t, semAnt.t), `vs ${money0(semAnt.t)} a estas alturas de la semana pasada`)}
+        ${tarjeta('Este mes', money0(mes.t), pctTxt(mes.t, mesAnt.t), `vs ${money0(mesAnt.t)} a estas alturas del mes pasado`)}
+        ${tarjeta('Promedio diario', money0(u30.t / 30), pctTxt(u30.t, p30.t), 'últimos 30 días vs los 30 anteriores')}
+        ${tarjeta('Desde el inicio', money0(total), `${dias.reduce((s, x) => s + x.n, 0)} ventas`, `desde el ${fechaDia(dUTC(primero).toISOString())}`)}
+      </div>
+      <div class="crec-g">
+        <div class="crec-main"><div class="crec-h"><b>Ventas por ${modo === 'sem' ? 'semana' : 'mes'}</b>${ult && ant ? `<span class="${ult.t >= ant.t ? 'up' : 'down'}">${pctTxt(ult.t, ant.t)} ${modo === 'sem' ? 'esta semana' : 'este mes'} (va en curso)</span>` : ''}</div>
+          ${grafica()}
+          <div class="crec-ley"><span><i class="c1"></i>ventas</span><span><i class="c2"></i>utilidad bruta</span><span><i class="c3"></i>tendencia</span></div></div>
+        <div class="crec-side">
+          <div class="crec-h"><b>Días que más se vende</b><span>promedio · 90 días</span></div>
+          <div class="crec-sem">${DSEM.map((l, w) => `<div class="crec-d ${w === mejorW ? 'top' : ''}" title="${l}: promedio ${money0(prom[w])} · ${ds[w].n} ventas en ${ds[w].d} días"><span>${l}</span><span class="crec-db"><i style="width:${(prom[w] / maxP) * 100}%"></i></span><b>${money0(prom[w])}</b></div>`).join('')}</div>
+          <div class="crec-h" style="margin-top:14px"><b>🏆 Mejores días</b></div>
+          <div class="crec-top">${top.map((x, i) => `<div><span>${['🥇', '🥈', '🥉', '4', '5'][i]} ${fechaDia(dUTC(x.k).toISOString())}</span><b>${money0(x.t)}</b><small>${x.n} ventas</small></div>`).join('')}</div>
+        </div>
+      </div></div>`;
+    $$('[data-crec] button', box).forEach((b) => b.addEventListener('click', () => { modo = b.dataset.m; FX.tap(); pinta(); }));
+  };
+  pinta();
 }
 
 // Gráfica de ventas por día (o por mes si el periodo es largo)
@@ -162,12 +289,18 @@ VIEWS['resumen'] = async (v) => {
     // la gráfica de un solo día se ve mejor con los 14 días anteriores
     const dia = r.hoy ? diaMX() : r.dia;
     const rs = dia ? { clave: 'custom', desde: isoMX(masDias(dia, -13)), hasta: isoMX(masDias(dia, 1)), etiqueta: 'Últimos 14 días' } : r;
-    const [d, serie, tes] = await Promise.all([
+    const [d, serie, tes, cli, crec, retTodo, retPer] = await Promise.all([
       API.rpc('resumen', { p_desde: r.desde, p_hasta: r.hasta }),
       dia ? API.rpc('resumen', { p_desde: rs.desde, p_hasta: rs.hasta }) : null,
       API.rpc('tesoreria', { p_desde: r.desde, p_hasta: r.hasta }).catch(() => null),
+      API.rpc('clientes_top', { p_desde: r.desde, p_hasta: r.hasta }).catch(() => null),
+      API.rpc('crecimiento').catch(() => null),
+      API.rpc('retiros_admin', { p_desde: '2000-01-01T00:00:00Z', p_hasta: '2100-01-01T00:00:00Z' }).catch(() => null),
+      API.rpc('retiros_admin', { p_desde: r.desde, p_hasta: r.hasta }).catch(() => null),
     ]).catch((e) => { toast(e.message, true); return []; });
     if (yo !== n || !d) return;
+    if (cli) d.clientes_top = cli;
+    if (crec) d.crecimiento = crec;
     $('#res', v).classList.remove('cargando');
     const di = d.dinero, inv = d.inventario, bp = di.banco_periodo;
     const box = $('#res', v);
@@ -194,7 +327,7 @@ VIEWS['resumen'] = async (v) => {
             <div class="bq-r"><span>Empacado devuelto <i>a costo</i></span><b>${money0(inv.empacado)}</b></div>
             <div class="bq-r fin"><span>Total a costo</span><b>${money0(+inv.almacen + +inv.vendedores + +inv.empacado)}</b></div>
           </div></div>
-      </div>`;
+      </div>${retTodo ? retirosHTML(retTodo, per, retPer || []) : ''}`;
     })()}`;
     bloqueVentas($('#hoy-v', box), d, r);
 
