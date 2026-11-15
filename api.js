@@ -14,6 +14,8 @@
     if (x && x.gramos != null && !isNaN(+x.gramos)) return +x.gramos;
     const t = String((x && (x.presentacion || x.nombre || x.descripcion)) || '').toLowerCase().replace(',', '.');
     if (/medio\s*kilo|½\s*kg/.test(t)) return 500;
+    const promo = t.match(/(\d+)\s*[×x]\s*\d+\s*de\s*(\d+(?:\.\d+)?)\s*g\b/); // «3×2 de 14 g» = 3 piezas de 14 g
+    if (promo) return +promo[1] * +promo[2];
     const m = t.match(/(\d+(?:\.\d+)?)\s*(kg|kilo|g)\b/);
     return m ? +m[1] * (m[2] === 'g' ? 1 : 1000) : Infinity;
   };

@@ -242,6 +242,12 @@ const AVA_DEFS = `<svg class="ava-defs" width="0" height="0" aria-hidden="true" 
   <linearGradient id="gp-tunic" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f1e6cf"/><stop offset="1" stop-color="#cdbb98"/></linearGradient>
   <linearGradient id="gp-hair" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8b5a33"/><stop offset="1" stop-color="#4d2e17"/></linearGradient>
   <linearGradient id="gp-hilt" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#6f757c"/><stop offset=".45" stop-color="#e9edf1"/><stop offset="1" stop-color="#5d6268"/></linearGradient>
+  <radialGradient id="gl-bg" cx="35%" cy="25%" r="90%"><stop offset="0" stop-color="#5b2a3a"/><stop offset=".6" stop-color="#2a1420"/><stop offset="1" stop-color="#12080e"/></radialGradient>
+  <radialGradient id="gl-skin" cx="40%" cy="32%" r="78%"><stop offset="0" stop-color="#f7d6bb"/><stop offset=".6" stop-color="#e3b08a"/><stop offset="1" stop-color="#c48a63"/></radialGradient>
+  <linearGradient id="gl-hair" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5a3d2b"/><stop offset=".6" stop-color="#36241a"/><stop offset="1" stop-color="#1e140e"/></linearGradient>
+  <radialGradient id="gl-beard" cx="45%" cy="25%" r="85%"><stop offset="0" stop-color="#5a3d2b"/><stop offset=".6" stop-color="#3a271c"/><stop offset="1" stop-color="#22160f"/></radialGradient>
+  <linearGradient id="gl-tux" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2b2b33"/><stop offset="1" stop-color="#0b0b0f"/></linearGradient>
+  <linearGradient id="gl-satin" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4a4a55"/><stop offset=".5" stop-color="#1c1c22"/><stop offset="1" stop-color="#3a3a44"/></linearGradient>
   <radialGradient id="gr-bun"cx="40%" cy="25%" r="80%"><stop offset="0" stop-color="#f2be72"/><stop offset=".7" stop-color="#d98f3c"/><stop offset="1" stop-color="#b06d26"/></radialGradient>
 </defs></svg>`;
 
@@ -297,6 +303,61 @@ const AVATARES = {
         <path d="M90 97q0 7 3 9" stroke="#fff" stroke-opacity=".3" stroke-width="1.3" fill="none" stroke-linecap="round"/>
         <ellipse cx="91" cy="110" rx="8" ry="5.5" fill="url(#gv-skin)"/>
         <path d="M85 108.5q6 2 12 0" stroke="#d9a07c" stroke-width="1" fill="none"/>
+      </g>
+    </g>
+    <circle cx="60" cy="60" r="60" fill="url(#g-vig)"/>
+    <circle class="ava-gloss" cx="60" cy="60" r="60" fill="url(#g-gloss)"/>
+  </svg>`,
+  // Luis (admin): guapo, barba cerrada bien cuidada, peinado hacia atrás, smoking negro con moño y su pipa
+  luis: `<svg viewBox="0 0 120 120" class="ava ava-v ava-l" aria-hidden="true">
+    <circle cx="60" cy="60" r="60" fill="url(#gl-bg)"/>
+    <g class="ava-rig">
+      <g class="ava-torso">
+        <path d="M14 124c4-24 23-32 46-32s42 8 46 32z" fill="url(#gl-tux)"/>
+        <path d="M50 93l10 31l10-31z" fill="#fbfaf7"/>
+        <path d="M60 104v20" stroke="#d9d6cf" stroke-width=".8"/>
+        <circle cx="60" cy="112" r="1.1" fill="#15151a"/><circle cx="60" cy="118.5" r="1.1" fill="#15151a"/>
+        <path d="M47 92.5l13 31l-17-14l5-4l-6-6z" fill="url(#gl-satin)"/>
+        <path d="M73 92.5l-13 31l17-14l-5-4l6-6z" fill="url(#gl-satin)"/>
+        <path d="M49 95q-4 12 4 24M71 95q4 12-4 24" stroke="#fff" stroke-opacity=".12" stroke-width="1.2" fill="none"/>
+        <path d="M52.5 96l7.5 3.2l-7.5 3.4q-1.6-3.3 0-6.6zM67.5 96l-7.5 3.2l7.5 3.4q1.6-3.3 0-6.6z" fill="#0d0d11"/>
+        <rect x="57.6" y="97.2" width="4.8" height="4.2" rx="1.4" fill="#1d1d24"/>
+        <path d="M53.5 97.4l4 1.6" stroke="#fff" stroke-opacity=".25" stroke-width=".8"/>
+        <path d="M27 106l7 2l-1 3l-7-1z" fill="#f1f1f1" opacity=".0"/>
+        <path d="M30 104q4-2 8 0l-1.5 3.5q-2.5-1-5 0z" fill="#fbfaf7"/>
+      </g>
+      <g class="ava-head"><g class="ava-hidle">
+        <ellipse cx="60" cy="92" rx="12" ry="3.5" fill="#000" opacity=".2"/>
+        <path d="M52 86h16v8q-8 4-16 0z" fill="url(#gl-skin)"/>
+        <ellipse cx="37.5" cy="63" rx="5" ry="7.2" fill="url(#gl-skin)"/><ellipse cx="82.5" cy="63" rx="5" ry="7.2" fill="url(#gl-skin)"/>
+        <path d="M36.5 60q2 3 0 6M83.5 60q-2 3 0 6" stroke="#b97b55" stroke-width="1.2" fill="none" stroke-linecap="round"/>
+        <path d="M38 60q0-30 22-30t22 30q0 18-5 24q-7 8-17 8t-17-8q-5-6-5-24z" fill="url(#gl-skin)"/>
+        <path d="M38.5 58q-1 22 6 30q6 7 15.5 7t15.5-7q7-8 6-30q-2 9-5 12q-3-4-8-4.5q-5-.4-8.5 1.5q-3.5-1.9-8.5-1.5q-5 .5-8 4.5q-3-3-5-12z" fill="url(#gl-beard)"/>
+        <path d="M45 82q15 9 30 0" stroke="#000" stroke-opacity=".18" stroke-width="1.2" fill="none"/>
+        <g class="ava-face">
+          <path class="ava-cejas" d="M44 52q6.5-4 13-.8M63 51.2q6.5-3.2 13 .8" stroke="#2c1d14" stroke-width="3.2" fill="none" stroke-linecap="round"/>
+          <g class="ava-eyes">${ojo(50.5, 59.5, 2.4)}${ojo(69.5, 59.5, 2.4)}</g>
+          <path d="M45.5 56q4.5-2 9 0M64.5 56q4.5-2 9 0" stroke="#2c1d14" stroke-opacity=".5" stroke-width="1" fill="none"/>
+          <path d="M59.5 61q-2.5 7 .5 9q2.5.6 4-1" stroke="#b97b55" stroke-width="1.9" fill="none" stroke-linecap="round"/>
+          <path d="M48 73.5q12-6 24 0q-6 2.5-12 1.6q-6 .9-12-1.6z" fill="#2a1b12"/>
+          <path class="ava-boca" d="M54 79q6 3.5 12 0" stroke="#d99a83" stroke-width="2.4" fill="none" stroke-linecap="round"/>
+          <path class="ava-risa" d="M53 78q7 1 14 0q-1 6-7 6t-7-6z" fill="#7a2f1d"/>
+        </g>
+        <path d="M37.5 57q-4-33 22.5-34q26.5 1 22.5 34q-1-10-4.5-14q-5-6-18-6q-13 0-18 6q-3.5 4-4.5 14z" fill="url(#gl-hair)"/>
+        <path d="M42 41q8-11 20-11q10 0 16 7q-9-4-18-3.5q-10 .5-18 7.5z" fill="#6b4a35" opacity=".55"/>
+        <path d="M46 33q8-5 20-4M48 38q8-5 18-5" stroke="#fff" stroke-opacity=".2" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+      </g></g>
+      <g class="ava-cup">
+        <g class="ava-humo" fill="#eef0f2"><circle cx="95" cy="91" r="2.2"/><circle cx="96.5" cy="90" r="1.8"/><circle cx="94" cy="90.5" r="1.5"/></g>
+        <path d="M70 80q11 4 19.5 13" stroke="#2b1b12" stroke-width="2.6" fill="none" stroke-linecap="round"/>
+        <path d="M70 80q3 1 5 2.2" stroke="#111" stroke-width="2.8" fill="none" stroke-linecap="round"/>
+        <path d="M88 94h12v7q0 7-6 7t-6-7z" fill="url(#gv-pipa)"/>
+        <ellipse cx="94" cy="94" rx="6" ry="1.8" fill="#3a2215"/><ellipse cx="94" cy="94" rx="4.4" ry="1.1" fill="#e2622b" opacity=".9"/>
+        <path d="M90 97q0 7 3 9" stroke="#fff" stroke-opacity=".3" stroke-width="1.3" fill="none" stroke-linecap="round"/>
+        <path d="M82 116q2-6 9-7l6 1l-1 8q-7 3-14-2z" fill="url(#gl-tux)"/>
+        <path d="M84 109.5q4-1.5 8 0l-.5 2.5q-3.5-1-7 0z" fill="#fbfaf7"/>
+        <ellipse cx="91" cy="108" rx="7.5" ry="5" fill="url(#gl-skin)"/>
+        <path d="M85 106.5q6 2 12 0" stroke="#b97b55" stroke-width="1" fill="none"/>
       </g>
     </g>
     <circle cx="60" cy="60" r="60" fill="url(#g-vig)"/>
@@ -395,8 +456,10 @@ const AVATARES = {
 };
 const COLORES_AVA = [['#8a5a3c', '#5b3a26'], ['#3d77a8', '#244a6b'], ['#3f8a5e', '#25563a'], ['#c08a3e', '#7f5718'], ['#a24c7c', '#66294b']];
 AVATARES.mclovin = AVATARES.vicente;
+const AVA_ALIAS = { mcloving: 'vicente', mclovin: 'vicente', admin: 'luis' };
 function avatar(p) {
-  const key = (p.usuario || p.nombre || '').toLowerCase().split(/\s/)[0];
+  let key = (p.usuario || p.nombre || '').toLowerCase().split(/\s/)[0];
+  key = AVA_ALIAS[key] || key;
   if (AVATARES[key]) return AVATARES[key];
   const ini = esc(((p.nombre || '?').trim()[0] || '?').toUpperCase());
   const [c1, c2] = COLORES_AVA[[...String(p.nombre || '')].reduce((s, c) => s + c.charCodeAt(0), 0) % COLORES_AVA.length];

@@ -125,7 +125,7 @@ main h1 { text-shadow: 0 1px 12px rgba(10, 14, 50, .25); }
 /* dentro de cualquier vidrio: tinta oscura otra vez */
 .card, .kpi, .hero-k, .tile, .pick, .ava-pick, .stk-c, .chip, .seg, .tabs, .btn, .badge, .info, .alert,
 .tbl-wrap, .fin-head, .bv-total, .cobrar, .login-card, dialog#modal, #toasts > *, .pp-aviso, .bv-k, .chat-lista,
-.ac-bars, .acciones .tile, .adm-c, .bk-r, .bv-dia td, .bv-sum > div, .calc > div, .cart, .cesta, .cfg, .chat-b, .chat-dia span, .chat-form, .chat-win, .cmp-i, .cp-bar, .cp-m, .cp-t, .cp-v, .cua-sis, .dash-b, .dk-i, .emp-i, .extra-box, .extra-btn, .gauge, .gben, .gx-chk, .gx-k > div, .gx-p, .hola, .holder, .icon-btn, .mini-of, .mk, .modal-x, .money-in, .mstk-i, .mun, .mun-r, .paq-i, .pcard, .pcard-m, .pk .stk, .pk-ico, .pk-prod, .pp, .pp-vend, .pres, .promo-tag, .pvg, .px-d, .qty, .rango-cal, .rec-i, .rev-card, .rev-p, .rev-pct, .rev-pu, .sk, .sol, .stepper, .stk, .tr-i, .upd-bar, .venta,
+.ac-bars, .acciones .tile, .adm-c, .bk-r, .bv-dia td, .bv-sum > div, .calc > div, .cart, .cesta, .cfg, .chat-b, .chat-dia span, .chat-form, .chat-win, .cmp-i, .cp-bar, .cp-m, .cp-t, .cp-v, .cua-sis, .dash-b, .dk-i, .emp-i, .extra-box, .extra-btn, .gauge, .gben, .gx-chk, .gx-k > div, .gx-p, .hola, .holder, .icon-btn, .mini-of, .mk, .modal-x, .money-in, .mstk-i, .mun, .mun-r, .paq-i, .pcard, .pcard-m, .pk .stk, .pk-ico, .pk-prod, .pp, .pp-vend, .pres, .promo-tag, .pvg, .px-d, .qty, .rango-cal, .rec-i, .rev-card, .rev-p, .rev-pct, .rev-pu, .rvt, .sk, .sol, .stepper, .stk, .tr-i, .upd-bar, .venta,
 input, select, textarea, .side, .top, .tabbar {
   --ink: var(--ink-in); --text: var(--ink-in); --muted: var(--muted-in); --faint: var(--faint-in);
   --err: var(--err-in); --ok: var(--ok-in); --warn: var(--warn-in); --brand: var(--brand-in);

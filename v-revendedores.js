@@ -1,5 +1,5 @@
 // Revendedores (solo administradores): ventas de mayoreo con precio especial y SIN comisión.
-// Precio sugerido = costo de adquisición + $200 (se puede corregir a mano y aplicar un % de descuento).
+// Precio mínimo = costo de adquisición + $200. A mano se puede cobrar más, nunca menos; el % de descuento tampoco baja de ese mínimo.
 // La venta la hace un administrador con su inventario; lo que le falte sale del almacén. El "cliente" es el revendedor.
 VIEWS['revendedores'] = async (v) => {
   let datos = await API.rpc('revendedores_datos');
@@ -16,10 +16,15 @@ VIEWS['revendedores'] = async (v) => {
   const invDe = (presId) => +(adm()?.inventario.find((i) => i.presentacion_id === presId)?.piezas || 0);
   const opDe = (id) => datos.catalogo.find((o) => o.opcion_id === +id);
   const usadas = (presId) => Object.entries(cart).reduce((s, [id, c]) => { const o = opDe(id); return s + (o.presentacion_id === presId ? c * o.piezas : 0); }, 0);
-  const pu = (id) => (precios[id] !== undefined && precios[id] !== '' ? Math.max(0, +precios[id] || 0) : +opDe(id).precio_revendedor);
+  const minDe = (id) => +opDe(id).precio_revendedor; // costo + $200
+  const manual = (id) => precios[id] !== undefined && precios[id] !== '';
+  const pu = (id) => (manual(id) ? Math.max(minDe(id), +precios[id] || 0) : minDe(id));
   const productos = () => Object.entries(cart).reduce((s, [id, c]) => s + c * pu(id), 0);
   const pct = () => Math.min(100, Math.max(0, +descPct || 0));
-  const descuento = () => Math.round(productos() * pct()) / 100;
+  // el descuento de cada producto llega como mucho a su mínimo (si ya está en el mínimo, no aplica)
+  const descDe = (id) => { const sub = cart[id] * pu(id); return Math.min(Math.round(sub * pct()) / 100, Math.max(0, sub - cart[id] * minDe(id))); };
+  const descuento = () => Math.round(Object.keys(cart).reduce((s, id) => s + descDe(id), 0) * 100) / 100;
+  const descTopado = () => pct() > 0 && Object.keys(cart).some((id) => descDe(id) < Math.round(cart[id] * pu(id) * pct()) / 100 - 0.005);
   const ahorro = () => Object.entries(cart).reduce((s, [id, c]) => s + c * (+opDe(id).precio - pu(id)), 0) + descuento();
   const mun = () => municipios.find((m) => m.id === munId);
   const envio = () => (tipo === 'paqueteria' ? +(datos.envio_paqueteria ?? 100) : tipo === 'local' ? +datos.envio_local : 0); // lo que paga el cliente
@@ -28,7 +33,7 @@ VIEWS['revendedores'] = async (v) => {
   const costoVenta = () => Object.entries(cart).reduce((s, [id, c]) => s + c * +opDe(id).costo, 0);
 
   v.innerHTML = `<div class="page-head"><div><span class="eyebrow">Solo administradores</span><h1>Revendedores</h1>
-      <div class="muted small">Precio de revendedor = costo + $200 · sin comisión</div></div></div>
+      <div class="muted small">Precio mínimo = costo + $200 · puedes cobrar más, nunca menos · sin comisión</div></div></div>
     ${tabsHTML('rev', [['vender', 'Vender'], ['panel', 'Revendedores']], 'vender')}
     <div data-panel="rev:vender"><div class="rev-grid">
       <div class="rev-main">
@@ -40,7 +45,7 @@ VIEWS['revendedores'] = async (v) => {
               <datalist id="rlist"></datalist></label>
             <label class="field"><span>Teléfono <i class="muted">(opcional)</i></span><input id="rtel" inputmode="tel" maxlength="20"></label>
           </div></div>
-        <div class="card"><div class="rev-paso"><b>3</b> Productos <span class="muted small">· precio de revendedor</span></div><div id="rprod"></div></div>
+        <div class="card"><div class="rev-paso"><b>3</b> Productos <span class="muted small">· toca + para agregar · el precio se puede subir</span></div><div id="rprod"></div></div>
         <div class="card"><div class="rev-paso"><b>4</b> Entrega</div>
           <div class="chips" id="rtipo">
             <button type="button" class="chip on" data-t="tienda">🏪 En tienda</button>
@@ -97,16 +102,22 @@ VIEWS['revendedores'] = async (v) => {
       .concat([...new Set(datos.catalogo.map((o) => o.categoria))].filter((c) => !ORDEN_CAT.includes(c)));
     if (catSel !== 'todos' && !cats.includes(catSel)) catSel = 'todos';
     const enCarrito = (c) => Object.entries(cart).reduce((s, [id, n]) => s + (opDe(id).categoria === c ? n : 0), 0);
-    const fila = (o) => {
-      const pid = o.presentacion_id, c = cart[o.opcion_id] || 0, quedan = disp(pid) - usadas(pid);
-      const esp = +o.precio_revendedor < +o.precio, trae = invDe(pid), alm = +o.almacen || 0;
-      const nombre = o.presentacion === 'Pieza' ? (o.piezas > 1 ? o.opcion : 'Pieza') : o.presentacion + (o.piezas > 1 ? ` · ${o.opcion}` : '');
-      return `<div class="rev-op ${disp(pid) <= 0 ? 'agotado' : ''}">
-        <span class="rev-op-i"><b>${esc(nombre)}</b>
-          <small class="muted">${disp(pid) <= 0 ? 'Sin existencias' : [trae ? `${esc(adm().nombre)} trae ${trae}` : '', alm ? `almacén ${alm}` : ''].filter(Boolean).join(' · ')}</small></span>
-        <span class="rev-precio">${esp ? `<s>${money0(o.precio)}</s>` : ''}<b>${money0(o.precio_revendedor)}</b></span>
-        <span class="rev-q"><button type="button" class="icon-btn" data-menos="${o.opcion_id}" ${c ? '' : 'disabled'} aria-label="Quitar">−</button><b>${c}</b>
-          <button type="button" class="icon-btn" data-mas="${o.opcion_id}" ${quedan >= o.piezas ? '' : 'disabled'} aria-label="Agregar">+</button></span></div>`;
+    const nomOp = (o) => (o.presentacion === 'Pieza' ? (o.piezas > 1 ? o.opcion : '1 pieza') : o.piezas > 1 ? o.opcion : o.presentacion);
+    const cuadro = (o) => {
+      const id = o.opcion_id, pid = o.presentacion_id, c = cart[id] || 0, quedan = disp(pid) - usadas(pid);
+      const trae = invDe(pid), alm = +o.almacen || 0, sin = disp(pid) <= 0, min = minDe(id);
+      const val = manual(id) ? precios[id] : min;
+      const nom = nomOp(o);
+      return `<div class="rvt ${sin ? 'agotado' : ''} ${c ? 'on' : ''}" data-rvt="${id}">
+        ${c ? `<span class="rvt-n">${c}</span>` : ''}
+        <span class="rvt-g ${nom.length > 7 ? 'rvt-g-l' : ''}">${esc(nom)}</span>
+        ${+o.precio > min ? `<span class="rvt-pub">público <s>${money0(o.precio)}</s></span>` : '<span class="rvt-pub">&nbsp;</span>'}
+        <label class="rvt-pu ${manual(id) && +precios[id] < min ? 'bajo' : ''}"><span>$</span><input type="number" min="${min}" step="any" inputmode="decimal" data-pu="${id}" value="${esc(val)}" aria-label="Precio por pieza de ${esc(o.descripcion)} ${esc(nom)}"></label>
+        <span class="rvt-min">mínimo ${money0(min)}${manual(id) && pu(id) > min ? ` · <button type="button" class="link" data-reset="${id}">volver</button>` : ''}</span>
+        <span class="rvt-q"><button type="button" class="icon-btn" data-menos="${id}" ${c ? '' : 'disabled'} aria-label="Quitar ${esc(nom)}">−</button><b>${c}</b>
+          <button type="button" class="icon-btn" data-mas="${id}" ${quedan >= o.piezas ? '' : 'disabled'} aria-label="Agregar ${esc(nom)}">+</button></span>
+        <span class="rvt-s">${sin ? 'Sin existencias' : [trae ? `${esc(adm().nombre)} trae ${trae}` : '', alm ? `almacén ${alm}` : ''].filter(Boolean).join(' · ')}</span>
+      </div>`;
     };
     const seccion = (cat) => {
       const ops = datos.catalogo.filter((o) => o.categoria === cat);
@@ -114,10 +125,11 @@ VIEWS['revendedores'] = async (v) => {
       // primero los productos con existencias
       skus.sort((a, b) => (ops.some((o) => o.sku === b && disp(o.presentacion_id) > 0) ? 1 : 0) - (ops.some((o) => o.sku === a && disp(o.presentacion_id) > 0) ? 1 : 0));
       return `<section class="rev-cat"><h3>${CAT_ICO[cat] || '📦'} ${esc(CAT[cat] || cat)} <span class="muted small">${skus.length} ${skus.length === 1 ? 'producto' : 'productos'}</span></h3>
-        <div class="rev-prods">${skus.map((sku) => {
+        <div class="rvp-list">${skus.map((sku) => {
           const mios = ops.filter((o) => o.sku === sku);
           const hay = mios.some((o) => disp(o.presentacion_id) > 0);
-          return `<div class="rev-p ${hay ? '' : 'agotado'}"><div class="rev-p-h"><b>${esc(sku)}</b>${mios[0].producto && mios[0].producto !== sku ? `<span class="muted small">${esc(mios[0].producto)}</span>` : ''}</div>${mios.map(fila).join('')}</div>`;
+          return `<div class="pk-prod rvp stk-${cat} ${hay ? '' : 'agotado'}"><div class="pk-prod-h"><span class="pk-ico">${CAT_ICO[cat] || '📦'}</span><b>${esc(sku)}</b>${mios[0].producto && mios[0].producto !== sku ? `<span class="muted small">${esc(mios[0].producto)}</span>` : ''}</div>
+            <div class="rvt-row">${mios.map(cuadro).join('')}</div></div>`;
         }).join('')}</div></section>`;
     };
     box.innerHTML = `<div class="chips rev-cats">${[['todos', 'Todos']].concat(cats.map((c) => [c, `${CAT_ICO[c] || '📦'} ${CAT[c] || c}`])).map(([k, l]) => {
@@ -127,40 +139,48 @@ VIEWS['revendedores'] = async (v) => {
     $$('[data-cat]', box).forEach((b) => b.addEventListener('click', () => { catSel = b.dataset.cat; FX.tap(); pintarProductos(); }));
     $$('[data-mas]', box).forEach((b) => b.addEventListener('click', () => { const id = b.dataset.mas; cart[id] = (cart[id] || 0) + 1; FX.add(); pintarProductos(); pintarResumen(); }));
     $$('[data-menos]', box).forEach((b) => b.addEventListener('click', () => { const id = b.dataset.menos; cart[id] = Math.max(0, (cart[id] || 0) - 1); if (!cart[id]) delete cart[id]; FX.quitar(); pintarProductos(); pintarResumen(); }));
+    // precio a mano: se puede subir; si queda abajo del mínimo se marca y al salir del campo regresa al mínimo
+    $$('[data-pu]', box).forEach((inp) => {
+      inp.addEventListener('input', () => {
+        const id = inp.dataset.pu;
+        precios[id] = inp.value;
+        if (inp.value !== '' && +inp.value === minDe(id)) delete precios[id];
+        inp.parentElement.classList.toggle('bajo', inp.value !== '' && +inp.value < minDe(id));
+        pintarResumen();
+      });
+      inp.addEventListener('change', () => {
+        const id = inp.dataset.pu;
+        if (inp.value === '' || +inp.value < minDe(id)) {
+          if (inp.value !== '' && +inp.value < minDe(id)) toast(`${opDe(id).descripcion}${opDe(id).piezas > 1 ? ' · ' + opDe(id).opcion : ''}: no se puede vender a menos de ${money0(minDe(id))} (costo + $200)`, true);
+          delete precios[id];
+        }
+        pintarProductos(); pintarResumen();
+      });
+    });
+    $$('[data-reset]', box).forEach((b) => b.addEventListener('click', (e) => { e.preventDefault(); delete precios[b.dataset.reset]; FX.tap(); pintarProductos(); pintarResumen(); }));
   };
 
   // Resumen: líneas con precio editable; los totales se repintan solos sin perder el foco del campo
   const pintarTotales = () => {
     const ef = metodo === 'efectivo' ? total() : metodo === 'mixto' ? Math.min(total(), Math.max(0, +efMix || 0)) : 0;
-    const bajo = Object.keys(cart).filter((id) => pu(id) < +opDe(id).costo);
     $('#rtot', v).innerHTML = `
       <div class="bq-r"><span>Productos</span><b>${money0(productos())}</b></div>
       ${descuento() ? `<div class="bq-r" style="color:var(--ok)"><span>Descuento ${pct()}%</span><b>−${money0(descuento())}</b></div>` : ''}
+      ${descTopado() ? `<div class="small" style="color:var(--warn);margin:-2px 0 6px">${descuento() ? 'El descuento solo se aplica hasta el mínimo de cada producto (costo + $200).' : 'No aplica: los productos ya están en su mínimo (costo + $200).'}</div>` : ''}
       ${envio() ? `<div class="bq-r"><span>Envío ${tipo === 'paqueteria' ? `· ${esc(mun()?.nombre || '')}` : 'local'}</span><b>${money0(envio())}</b></div>` : ''}
       <div class="bq-r fin"><span>Total</span><b>${money0(total())}</b></div>
       ${ahorro() > 0 ? `<div class="rev-ahorro">El revendedor ahorra ${money0(ahorro())} vs. precio al público</div>` : ''}
       ${Object.keys(cart).length ? `<div class="small muted" style="margin-top:6px">Ganancia: <b style="color:${total() - (tipo === 'paqueteria' ? costoPaq() : envio()) - costoVenta() >= 0 ? 'var(--ok)' : 'var(--err)'}">${money0(total() - (tipo === 'paqueteria' ? costoPaq() : envio()) - costoVenta())}</b> sobre un costo de ${money0(costoVenta())}</div>` : ''}
-      ${bajo.length ? `<div class="small" style="color:var(--err);margin-top:6px">⚠️ ${bajo.map((id) => esc(opDe(id).descripcion)).join(', ')} queda abajo de su costo</div>` : ''}`;
+      `;
     $('#rnotas', v).textContent = `Sin comisión · sale del inventario de ${adm()?.nombre || '—'} (lo que falte, del almacén)${metodo !== 'efectivo' && total() ? ` · ${money0(total() - ef)} por transferencia, queda por verificar` : ''}`;
     $('#rcobrar', v).disabled = !Object.keys(cart).length;
     Object.keys(cart).forEach((id) => { const el = $(`[data-sub="${id}"]`, v); if (el) el.textContent = money0(cart[id] * pu(id)); });
   };
   const pintarResumen = () => {
     const lineas = Object.entries(cart).map(([id, c]) => ({ id, o: opDe(id), c }));
-    $('#rlin', v).innerHTML = lineas.length ? lineas.map(({ id, o, c }) => {
-      const man = precios[id] !== undefined && precios[id] !== '';
-      return `<div class="rev-lin"><div class="rev-lin-h"><span>${c}× ${esc(o.descripcion)}${o.piezas > 1 ? ' · ' + esc(o.opcion) : ''}</span><b data-sub="${id}">${money0(c * pu(id))}</b></div>
-        <div class="rev-lin-p"><label class="rev-pu"><span>$</span><input type="number" min="0" step="any" inputmode="decimal" data-pu="${id}" value="${man ? esc(precios[id]) : +o.precio_revendedor}" aria-label="Precio por pieza"></label>
-          <small class="muted">c/u · sugerido ${money0(o.precio_revendedor)}</small>${man ? `<button type="button" class="rev-reset" data-reset="${id}" title="Volver al precio sugerido">↺</button>` : ''}</div></div>`;
-    }).join('') : '<div class="muted small" style="margin-bottom:10px">Agrega productos</div>';
-    $$('[data-pu]', v).forEach((inp) => inp.addEventListener('input', () => {
-      const id = inp.dataset.pu;
-      precios[id] = inp.value;
-      if (+inp.value === +opDe(id).precio_revendedor) delete precios[id];
-      pintarTotales();
-    }));
-    $$('[data-pu]', v).forEach((inp) => inp.addEventListener('change', () => pintarResumen()));
-    $$('[data-reset]', v).forEach((b) => b.addEventListener('click', () => { delete precios[b.dataset.reset]; FX.tap(); pintarResumen(); }));
+    $('#rlin', v).innerHTML = lineas.length ? lineas.map(({ id, o, c }) => `<div class="rev-lin"><div class="rev-lin-h"><span>${c}× ${esc(o.descripcion)}${o.piezas > 1 ? ' · ' + esc(o.opcion) : ''}</span><b data-sub="${id}">${money0(c * pu(id))}</b></div>
+        <div class="small muted">${money0(pu(id))} c/u${pu(id) > minDe(id) ? ` · mínimo ${money0(minDe(id))}` : ' · precio mínimo'}</div></div>`).join('')
+      : '<div class="muted small" style="margin-bottom:10px">Agrega productos</div>';
     pintarTotales();
   };
 
@@ -172,7 +192,7 @@ VIEWS['revendedores'] = async (v) => {
     await run(btn, async () => {
       const r = await API.rpc('registrar_venta_revendedor', {
         p_admin: admId, p_revendedor: nombre, p_metodo: metodo,
-        p_items: Object.entries(cart).map(([id, c]) => ({ opcion_id: +id, cantidad: c, ...(precios[id] !== undefined && precios[id] !== '' ? { precio: pu(id) } : {}) })),
+        p_items: Object.entries(cart).map(([id, c]) => ({ opcion_id: +id, cantidad: c, ...(pu(id) > minDe(id) ? { precio: pu(id) } : {}) })),
         p_tipo: tipo, p_municipio: tipo === 'paqueteria' ? munId : null, p_telefono: $('#rtel', v).value.trim() || null,
         p_efectivo: metodo === 'mixto' ? +efMix || 0 : null, p_nota: $('#rnota', v).value.trim() || null, p_descuento: pct(),
       });
