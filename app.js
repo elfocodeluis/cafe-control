@@ -186,6 +186,12 @@ const FX = (() => {
     exito() { [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => pluck(f, i * 0.07, 0.05, 0.4)); nota(2093, { delay: 0.3, vol: 0.014, dur: 0.6 }); },
     caja() { nota(1568, { dur: 0.08, vol: 0.04, type: 'triangle' }); nota(2093, { dur: 0.4, vol: 0.045, delay: 0.07 }); nota(2637, { dur: 0.45, vol: 0.02, delay: 0.13 }); },
     cesta() { pluck(523, 0, 0.05); pluck(784, 0.06, 0.045); pluck(1047, 0.12, 0.04, 0.35); },
+    // Bóveda: rueda que trinquetea, pernos que golpean, puerta pesada con escape de aire
+    bovedaRueda() { for (let i = 0; i < 9; i++) { const d = i * 0.075 * (1 - i * 0.03); nota(2600 - i * 40, { dur: 0.018, vol: 0.022, type: 'square', delay: d, send: false }); nota(780, { dur: 0.03, vol: 0.02, type: 'triangle', delay: d }); } },
+    bovedaCerrojo() { nota(92, { dur: 0.32, vol: 0.14, glide: 0.55 }); nota(184, { dur: 0.12, vol: 0.05, type: 'triangle', glide: 0.6 }); ruido(0.09, 0.05, 900, 180); nota(1400, { dur: 0.05, vol: 0.02, type: 'triangle', delay: 0.02 }); },
+    bovedaPuerta() { ruido(1.05, 0.03, 3400, 500); nota(118, { dur: 1.1, vol: 0.022, type: 'sawtooth', glide: 0.72, attack: 0.25 }); nota(59, { dur: 1.2, vol: 0.06, glide: 0.8, attack: 0.3 }); [880, 1320, 1760].forEach((f, i) => nota(f, { dur: 0.7, vol: 0.012, delay: 0.75 + i * 0.06 })); },
+    bovedaCierra() { nota(70, { dur: 1.1, vol: 0.05, glide: 1.3, attack: 0.4 }); ruido(0.9, 0.022, 600, 2600); nota(100, { dur: 0.9, vol: 0.016, type: 'sawtooth', glide: 0.85, attack: 0.3 }); },
+    bovedaNo() { nota(196, { dur: 0.12, type: 'square', vol: 0.03, send: false }); nota(196, { dur: 0.18, type: 'square', vol: 0.03, delay: 0.16, send: false }); nota(147, { dur: 0.3, type: 'triangle', vol: 0.05, delay: 0.16 }); },
     abrir: () => ruido(0.16, 0.016, 500, 2200),
     cerrar: () => ruido(0.12, 0.01, 1800, 500),
     swOn: () => { nota(880, { dur: 0.06, vol: 0.03 }); nota(1320, { dur: 0.09, vol: 0.03, delay: 0.05 }); },

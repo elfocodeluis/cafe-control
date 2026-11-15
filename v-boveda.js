@@ -32,24 +32,38 @@ VIEWS['boveda'] = async (v) => {
   v.innerHTML = `<div class="page-head"><div><h1>Bóveda</h1><div class="muted small">${hoyTxt()} · dónde está el dinero del negocio ahora: en el banco y en efectivo</div></div></div>
     <div class="bv-total" id="bv-total"><div><span class="bv-total-l">Dinero del negocio ahora</span><b id="bv-tot-n">…</b></div><span class="bv-total-eq" id="bv-tot-eq"></span></div>
     <div class="bv-parte-t">🏦 Banco · electrónico</div>
-    <section class="bv ${yaAbierta || reducir ? 'abierta sin-anim' : ''}" id="bv" aria-label="Bóveda del banco">
-      <div class="bv-caja">
-        <div class="bv-marco" aria-hidden="true"></div>
-        <div class="bv-dentro"><span class="bv-l">Saldo en el banco</span><b class="bv-n" id="bv-n">…</b><span class="bv-s" id="bv-s"></span></div>
-        <button type="button" class="bv-puerta" id="bv-p" aria-controls="bv-in" aria-expanded="false" aria-label="Abrir la bóveda">
-          <span class="bv-sello" id="bv-sello"></span>
-          <span class="bv-disco" aria-hidden="true"><i></i></span>
-          <span class="bv-tag">Bóveda<b id="bv-tn">…</b></span>
-        </button>
-      </div>
-      <div class="bv-lado">
-        <div class="bv-res" id="bv-res"></div>
+    <section class="bv ${yaAbierta ? 'abierta desbloq sin-anim' : ''}" id="bv" aria-label="Bóveda del banco">
+      <div class="bv-res bv-res-l" id="bv-res-l"></div>
+      <div class="bv-centro">
+        <div class="bv-caja" id="bv-caja">
+          <div class="bv-marco" aria-hidden="true"><span class="bv-anillo"></span><span class="bv-bisagra"></span><span class="bv-bisagra b2"></span></div>
+          <div class="bv-dentro"><span class="bv-luz" aria-hidden="true"></span><span class="bv-l">Saldo en el banco</span><b class="bv-n" id="bv-n">…</b><span class="bv-s" id="bv-s"></span></div>
+          <button type="button" class="bv-puerta" id="bv-p" aria-controls="bv-in" aria-expanded="false" aria-label="Abrir la bóveda">
+            ${[1, 2, 3, 4, 5].map((n) => `<span class="bv-capa" style="--n:${n}" aria-hidden="true"></span>`).join('')}
+            <span class="bv-pernos" aria-hidden="true">${[0, 1, 2, 3, 4, 5, 6, 7].map((n) => `<i style="--a:${n * 45 + 22.5}deg"></i>`).join('')}</span>
+            <span class="bv-cara">
+              <span class="bv-escala" aria-hidden="true"></span>
+              <span class="bv-sello" id="bv-sello"></span>
+              <span class="bv-rueda" aria-hidden="true"><i></i><i></i><i></i><b></b></span>
+              <span class="bv-tag">Bóveda<b id="bv-tn">…</b></span>
+            </span>
+          </button>
+          <form class="bv-clave" id="bv-clave" hidden autocomplete="on">
+            <label for="bv-clave-i">🔒 Contraseña de ${esc((ME && ME.nombre) || 'tu usuario')}</label>
+            <div class="bv-clave-f">
+              <input id="bv-clave-i" type="password" autocomplete="current-password" required placeholder="••••••••">
+              <button type="submit" class="btn btn-primary" id="bv-clave-ok">Abrir</button>
+            </div>
+            <div class="bv-clave-pie"><small id="bv-clave-msg" aria-live="polite"></small><button type="button" class="bv-clave-x" id="bv-clave-x">Cancelar</button></div>
+          </form>
+        </div>
         <div class="bv-acts">
-          <button type="button" class="btn btn-primary" id="bv-abrir">Abrir la bóveda</button>
+          <button type="button" class="btn btn-primary" id="bv-abrir">🔒 Abrir con contraseña</button>
           <button type="button" class="btn" id="bv-cuadrar">🧮 Cuadrar banco</button>
           <a class="btn" href="#/caja?op=ajuste">⚖️ Ajuste</a>
         </div>
       </div>
+      <div class="bv-res bv-res-r" id="bv-res-r"></div>
     </section>
     <div class="bv-parte-t">💵 Efectivo · lo traen los vendedores</div>
     <div class="card bv-efectivo" id="bv-ef"><div class="empty">Cargando…</div></div>
@@ -73,21 +87,63 @@ VIEWS['boveda'] = async (v) => {
     </div>`;
 
   const bv = $('#bv', v), puerta = $('#bv-p', v), btnAbrir = $('#bv-abrir', v);
+  const form = $('#bv-clave', v), inp = $('#bv-clave-i', v), msg = $('#bv-clave-msg', v), btnOk = $('#bv-clave-ok', v);
+  const espera = (ms) => new Promise((r) => setTimeout(r, reducir ? 0 : ms));
+  let ocupado = false, luego = null;
   const pintaPuerta = () => {
     const abierta = bv.classList.contains('abierta');
     puerta.setAttribute('aria-expanded', abierta);
-    puerta.setAttribute('aria-label', abierta ? 'Cerrar la bóveda' : 'Abrir la bóveda');
-    btnAbrir.textContent = abierta ? 'Cerrar la bóveda' : 'Abrir la bóveda';
+    puerta.setAttribute('aria-label', abierta ? 'Cerrar la bóveda' : 'Abrir la bóveda con tu contraseña');
+    btnAbrir.textContent = abierta ? 'Cerrar la bóveda' : '🔒 Abrir con contraseña';
     $('#bv-in', v).classList.toggle('visible', abierta);
   };
-  const alternar = () => {
-    bv.classList.remove('sin-anim');
-    const abierta = !bv.classList.contains('abierta');
-    bv.classList.toggle('abierta', abierta);
-    if (abierta) { guardarSesion('boveda_abierta', '1'); FX.caja(); }
-    pintaPuerta();
-    if (abierta) setTimeout(() => $('#bv-in', v).scrollIntoView({ behavior: reducir ? 'auto' : 'smooth', block: 'start' }), reducir ? 0 : 700);
+  // la puerta solo abre con la contraseña del usuario que tiene la sesión
+  const pedirClave = (despues) => {
+    if (ocupado) return;
+    luego = despues || null;
+    form.hidden = false; bv.classList.add('pidiendo');
+    inp.value = ''; msg.textContent = ''; msg.className = '';
+    FX.tap(); setTimeout(() => inp.focus(), 30);
   };
+  const cancelar = () => { form.hidden = true; bv.classList.remove('pidiendo', 'error', 'verif'); luego = null; };
+  const abrir = async () => {
+    ocupado = true;
+    bv.classList.remove('sin-anim', 'pidiendo');
+    bv.classList.add('desbloq'); FX.bovedaRueda();          // gira la rueda
+    await espera(700); FX.bovedaCerrojo();                    // se retraen los pernos
+    await espera(320); bv.classList.add('abierta'); FX.bovedaPuerta(); // se abre la puerta
+    guardarSesion('boveda_abierta', '1'); pintaPuerta();
+    await espera(1250); ocupado = false;
+    const f = luego; luego = null; if (f) f();
+  };
+  const cerrar = async () => {
+    if (ocupado) return;
+    ocupado = true;
+    bv.classList.remove('sin-anim', 'abierta'); FX.bovedaCierra();
+    try { sessionStorage.removeItem('boveda_abierta'); } catch { /* sin almacenamiento */ }
+    pintaPuerta();
+    await espera(1150); bv.classList.remove('desbloq'); FX.bovedaCerrojo();
+    await espera(500); ocupado = false;
+  };
+  const alternar = () => { if (ocupado) return; if (bv.classList.contains('abierta')) cerrar(); else if (form.hidden) pedirClave(); else inp.focus(); };
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const pw = inp.value;
+    if (!pw || ocupado) return;
+    bv.classList.remove('error'); bv.classList.add('verif');
+    btnOk.disabled = true; msg.className = ''; msg.textContent = 'Verificando…';
+    let ok = false;
+    try { ok = await API.verificarClave(pw); }
+    catch (err) { msg.textContent = err.message || 'Sin conexión'; msg.className = 'mal'; }
+    finally { btnOk.disabled = false; bv.classList.remove('verif'); }
+    if (ok) { inp.value = ''; msg.textContent = ''; form.hidden = true; abrir(); return; }
+    if (!msg.className) { msg.textContent = 'Contraseña incorrecta'; msg.className = 'mal'; }
+    bv.classList.add('error'); form.classList.remove('sacude'); void form.offsetWidth; form.classList.add('sacude');
+    FX.bovedaNo(); inp.select();
+    setTimeout(() => bv.classList.remove('error'), 1200);
+  });
+  $('#bv-clave-x', v).addEventListener('click', cancelar);
+  form.addEventListener('keydown', (e) => { if (e.key === 'Escape') cancelar(); });
   puerta.addEventListener('click', alternar);
   btnAbrir.addEventListener('click', alternar);
   pintaPuerta();
@@ -103,14 +159,15 @@ VIEWS['boveda'] = async (v) => {
     sello.textContent = s.txt; sello.classList.toggle('ok', s.ok);
     const pend = d.por_verificar, totPend = pend.reduce((x, p) => x + +p.monto, 0);
     const hoy = d.hoy;
-    $('#bv-res', v).innerHTML = `
+    $('#bv-res-l', v).innerHTML = `
       <div class="bv-k"><span>Entró hoy</span><b class="in-t">+${money0(hoy.entro)}</b></div>
-      <div class="bv-k"><span>Salió hoy</span><b class="out-t">−${money0(hoy.salio)}</b></div>
+      <div class="bv-k"><span>Salió hoy</span><b class="out-t">−${money0(hoy.salio)}</b></div>`;
+    $('#bv-res-r', v).innerHTML = `
       <button type="button" class="bv-k bv-k-btn ${pend.length ? 'warn' : ''}" data-ir-verif><span>Por verificar</span><b>${pend.length ? `${pend.length} · ${money0(totPend)}` : '✓ nada'}</b></button>
       <div class="bv-k ${s.ok ? '' : 'warn'}"><span>Cuadre</span><b>${s.ok ? s.sub : s.txt}</b></div>`;
     $('[data-ir-verif]', v).addEventListener('click', () => {
-      if (!bv.classList.contains('abierta')) alternar();
-      $('[data-tabs="boveda"] [data-tab="verif"]', v).click();
+      const irVerif = () => { $('[data-tabs="boveda"] [data-tab="verif"]', v).click(); $('#bv-in', v).scrollIntoView({ behavior: reducir ? 'auto' : 'smooth', block: 'start' }); };
+      if (bv.classList.contains('abierta')) irVerif(); else pedirClave(irVerif);
     });
     const tv = $('[data-tabs="boveda"] [data-tab="verif"]', v);
     tv.innerHTML = `Transferencias${pend.length ? ` <span class="tab-n">${pend.length}</span>` : ''}`;

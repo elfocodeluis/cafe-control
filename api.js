@@ -95,6 +95,30 @@
       store.set(j.token);
     },
 
+    // ¿Es la contraseña del usuario con sesión? Se comprueba aparte, sin tocar la sesión abierta.
+    async verificarClave(password) {
+      try {
+        if (sb) {
+          const { data } = await sb.auth.getSession();
+          const email = data.session?.user?.email;
+          if (!email) return false;
+          const r = await fetch(`${C.supabaseUrl}/auth/v1/token?grant_type=password`, {
+            method: 'POST', headers: { apikey: C.supabaseKey, 'content-type': 'application/json' },
+            body: JSON.stringify({ email, password }),
+          });
+          if (r.status === 429) throw new Error('Demasiados intentos, espera un minuto');
+          return r.ok;
+        }
+        const r = await fetch('/dev/clave', {
+          method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${store.get() || ''}` },
+          body: JSON.stringify({ password }),
+        });
+        return r.ok;
+      } catch (e) {
+        throw new Error(traducir(e.message));
+      }
+    },
+
     async logout() {
       if (sb) await sb.auth.signOut();
       store.set(null);
