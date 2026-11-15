@@ -1,0 +1,379 @@
+/* =====================================================================
+   Café · Control — capa "vidrio líquido"
+   Solo visual: se carga después de styles.css y redefine tokens + superficies.
+   Para quitarla: borra la línea <link rel="stylesheet" href="glass.css"> de index.html.
+   1 tokens · 2 fondo · 3 vidrio base · 4 shell · 5 componentes · 6 Finanzas · 7 accesibilidad
+   ===================================================================== */
+
+/* ---------- 1 · tokens ---------- */
+:root {
+  /* tipografía: una sola familia, la del sistema (SF Pro en Mac/iPhone) */
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Helvetica Neue", Inter, system-ui, sans-serif;
+  --serif: var(--font);
+
+  /* color: papel cálido, tinta espresso */
+  --paper: #ece7e1;
+  --ink: #1f1915;
+  --text: #1f1915;
+  --muted: #5d5148;
+  --faint: #8a7d72;
+  --brand: #3b2a20; --brand-2: #5e4434; --brand-ink: #fffaf4;
+  --brand-soft: rgba(59, 42, 32, .08);
+  --accent: #a87a4e; --accent-soft: rgba(168, 122, 78, .14);
+  --ok: #2e6b4a; --ok-soft: rgba(46, 107, 74, .12);
+  --warn: #85560a; --warn-soft: rgba(133, 86, 10, .12);
+  --err: #a6382c; --err-soft: rgba(166, 56, 44, .11);
+  --info: #2f5e86; --info-soft: rgba(47, 94, 134, .12);
+
+  /* vidrio */
+  --glass: rgba(255, 252, 248, .56);          /* tarjetas */
+  --glass-thin: rgba(255, 252, 248, .38);     /* controles sobre vidrio */
+  --glass-hi: rgba(255, 255, 255, .82);       /* elemento activo */
+  --glass-solid: rgba(255, 252, 248, .96);    /* tablas, listas largas, diálogos */
+  --glass-edge: rgba(255, 255, 255, .72);     /* borde luminoso */
+  --glass-hair: rgba(58, 38, 24, .09);        /* línea fina interior */
+  --glass-blur: 26px;
+  --glass-sat: 175%;
+  --glass-spec: inset 0 1px 0 rgba(255, 255, 255, .85), inset 0 -1px 0 rgba(255, 255, 255, .18);
+  --glass-shadow: 0 1px 1px rgba(40, 25, 15, .04), 0 22px 44px -26px rgba(40, 25, 15, .36);
+  --glass-shadow-lg: 0 2px 2px rgba(40, 25, 15, .04), 0 40px 80px -36px rgba(40, 25, 15, .45);
+
+  /* superficies del sistema anterior → vidrio (así lo heredan todas las pantallas) */
+  --bg: var(--paper); --bg-2: transparent;
+  --surface: var(--glass); --surface-2: rgba(58, 38, 24, .045); --surface-3: rgba(58, 38, 24, .065);
+  --border: var(--glass-hair); --border-2: rgba(58, 38, 24, .16);
+  --ring: rgba(59, 42, 32, .22);
+
+  /* forma, espacio, movimiento */
+  --r-sm: 12px; --r: 22px; --r-lg: 28px; --r-pill: 999px;
+  --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 24px; --s6: 32px; --s7: 48px;
+  --t-fast: 150ms; --t: 200ms; --t-slow: 250ms;
+  --ease: cubic-bezier(.2, .8, .2, 1);
+  --side: 248px; --side-gap: 16px;
+
+  /* fondo: luz detrás del vidrio */
+  --bg-base: linear-gradient(165deg, #f1ece6 0%, #e9e3db 55%, #e4ddd4 100%);
+  --orb-1: rgba(222, 176, 124, .85);   /* crema */
+  --orb-2: rgba(160, 186, 152, .80);   /* salvia */
+  --orb-3: rgba(207, 158, 142, .70);   /* barro */
+}
+
+/* modo oscuro: tostado profundo */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #120e0b; --ink: #f4ede6; --text: #f4ede6; --muted: #bcae9f; --faint: #8c7f73;
+    --brand: #e6c7a2; --brand-2: #f0d6b6; --brand-ink: #1c140f; --brand-soft: rgba(230, 199, 162, .12);
+    --accent: #d9ad7c; --accent-soft: rgba(217, 173, 124, .14);
+    --ok: #7fd3a2; --ok-soft: rgba(127, 211, 162, .13); --warn: #f0c070; --warn-soft: rgba(240, 192, 112, .13);
+    --err: #f3958a; --err-soft: rgba(243, 149, 138, .13); --info: #9cc6ec; --info-soft: rgba(156, 198, 236, .13);
+    --glass: rgba(44, 35, 29, .52); --glass-thin: rgba(60, 49, 41, .42); --glass-hi: rgba(255, 245, 235, .14);
+    --glass-solid: rgba(30, 24, 20, .95); --glass-edge: rgba(255, 240, 225, .14); --glass-hair: rgba(255, 240, 225, .08);
+    --glass-spec: inset 0 1px 0 rgba(255, 240, 225, .12), inset 0 -1px 0 rgba(0, 0, 0, .2);
+    --glass-shadow: 0 1px 1px rgba(0, 0, 0, .2), 0 24px 48px -24px rgba(0, 0, 0, .7);
+    --glass-shadow-lg: 0 2px 2px rgba(0, 0, 0, .25), 0 40px 90px -30px rgba(0, 0, 0, .8);
+    --surface-2: rgba(255, 240, 225, .05); --surface-3: rgba(255, 240, 225, .08);
+    --border-2: rgba(255, 240, 225, .16); --ring: rgba(230, 199, 162, .3);
+    --bg-base: linear-gradient(165deg, #17110e 0%, #120d0a 60%, #0f0b09 100%);
+    --orb-1: rgba(122, 74, 42, .55); --orb-2: rgba(40, 62, 50, .60); --orb-3: rgba(70, 40, 56, .50);
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #120e0b; --ink: #f4ede6; --text: #f4ede6; --muted: #bcae9f; --faint: #8c7f73;
+  --brand: #e6c7a2; --brand-2: #f0d6b6; --brand-ink: #1c140f; --brand-soft: rgba(230, 199, 162, .12);
+  --accent: #d9ad7c; --accent-soft: rgba(217, 173, 124, .14);
+  --ok: #7fd3a2; --ok-soft: rgba(127, 211, 162, .13); --warn: #f0c070; --warn-soft: rgba(240, 192, 112, .13);
+  --err: #f3958a; --err-soft: rgba(243, 149, 138, .13); --info: #9cc6ec; --info-soft: rgba(156, 198, 236, .13);
+  --glass: rgba(44, 35, 29, .52); --glass-thin: rgba(60, 49, 41, .42); --glass-hi: rgba(255, 245, 235, .14);
+  --glass-solid: rgba(30, 24, 20, .95); --glass-edge: rgba(255, 240, 225, .14); --glass-hair: rgba(255, 240, 225, .08);
+  --glass-spec: inset 0 1px 0 rgba(255, 240, 225, .12), inset 0 -1px 0 rgba(0, 0, 0, .2);
+  --glass-shadow: 0 1px 1px rgba(0, 0, 0, .2), 0 24px 48px -24px rgba(0, 0, 0, .7);
+  --glass-shadow-lg: 0 2px 2px rgba(0, 0, 0, .25), 0 40px 90px -30px rgba(0, 0, 0, .8);
+  --surface-2: rgba(255, 240, 225, .05); --surface-3: rgba(255, 240, 225, .08);
+  --border-2: rgba(255, 240, 225, .16); --ring: rgba(230, 199, 162, .3);
+  --bg-base: linear-gradient(165deg, #17110e 0%, #120d0a 60%, #0f0b09 100%);
+  --orb-1: rgba(122, 74, 42, .55); --orb-2: rgba(40, 62, 50, .60); --orb-3: rgba(70, 40, 56, .50);
+}
+
+/* ---------- 2 · fondo ---------- */
+html { background: var(--paper); }
+body {
+  background: transparent; color: var(--text);
+  font-family: var(--font); font-size: 15px; letter-spacing: -.005em;
+  font-feature-settings: "tnum" 0;
+}
+body::before {
+  content: ''; position: fixed; inset: -10vmax; z-index: -1; pointer-events: none;
+  background:
+    radial-gradient(38vmax 34vmax at 18% 12%, var(--orb-1), transparent 70%),
+    radial-gradient(34vmax 30vmax at 92% 26%, var(--orb-2), transparent 70%),
+    radial-gradient(40vmax 30vmax at 62% 104%, var(--orb-3), transparent 70%),
+    var(--bg-base);
+}
+
+/* una sola tipografía, jerarquía por tamaño y peso */
+h1 { font: 650 32px/1.08 var(--font); letter-spacing: -.032em; font-variation-settings: normal; }
+h2 { font-size: 16px; font-weight: 620; letter-spacing: -.012em; }
+.num, .val, .wf-n, .bq-r b, .rank-t b, .desg-i b { font-variant-numeric: tabular-nums; }
+
+/* ---------- 3 · vidrio base ---------- */
+.side, .top, .tabbar, .card, .kpi, .hero-k, .seg, .tabs, #toasts > *, dialog#modal {
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+}
+.card, .kpi, .hero-k {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .22), rgba(255, 255, 255, 0) 38%),
+    var(--glass);
+  border: 1px solid var(--glass-edge);
+  box-shadow: var(--glass-spec), var(--glass-shadow);
+  border-radius: var(--r);
+}
+:root[data-theme="dark"] .card, :root[data-theme="dark"] .kpi, :root[data-theme="dark"] .hero-k {
+  background: linear-gradient(180deg, rgba(255, 240, 225, .05), rgba(255, 240, 225, 0) 40%), var(--glass);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .card, :root:not([data-theme="light"]) .kpi, :root:not([data-theme="light"]) .hero-k {
+    background: linear-gradient(180deg, rgba(255, 240, 225, .05), rgba(255, 240, 225, 0) 40%), var(--glass);
+  }
+}
+.card { padding: 22px 24px; margin-bottom: var(--s4); }
+
+/* datos largos: superficie casi opaca, sin desenfoque */
+.tbl-wrap {
+  background: var(--glass-solid); border-radius: var(--r-sm);
+  margin: 0; padding: 4px 14px; border: 1px solid var(--glass-hair);
+}
+
+/* ---------- 4 · shell ---------- */
+/* menú lateral flotante (escritorio) */
+.side {
+  inset: var(--side-gap) auto var(--side-gap) var(--side-gap);
+  width: var(--side); border-radius: var(--r-lg);
+  background: linear-gradient(180deg, rgba(255, 255, 255, .26), rgba(255, 255, 255, .06)), var(--glass-thin);
+  border: 1px solid var(--glass-edge);
+  box-shadow: var(--glass-spec), var(--glass-shadow-lg);
+  padding: 20px 12px 14px;
+}
+:root[data-theme="dark"] .side { background: var(--glass); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .side { background: var(--glass); } }
+.side-brand b { font-weight: 650; }
+.brand-dot { border-radius: 11px; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .3), 0 6px 14px -8px rgba(40, 25, 15, .6); }
+.nav a { border-radius: 12px; font-weight: 520; color: var(--muted); transition: background var(--t) var(--ease), color var(--t) var(--ease), box-shadow var(--t) var(--ease); }
+.nav-side a:hover { background: var(--glass-thin); color: var(--text); }
+.nav-side a:hover svg { transform: none; }
+.nav-side a.on { background: var(--glass-hi); color: var(--text); box-shadow: var(--glass-spec), 0 6px 16px -10px rgba(40, 25, 15, .35); }
+.nav-side a.on::before { content: none; }
+.nav-side a.on svg { color: var(--text); }
+.side-foot { border-top-color: var(--glass-hair); }
+.side-chat > *, .side-chat-btn { background: var(--glass-thin) !important; border-color: var(--glass-edge) !important; border-radius: 16px !important; }
+.icon-btn { background: var(--glass-thin); border-color: var(--glass-edge); transition: background var(--t-fast) var(--ease), transform var(--t-fast) var(--ease); }
+.icon-btn:hover { transform: none; background: var(--glass-hi); }
+main { margin-left: calc(var(--side) + var(--side-gap)); padding: 38px 44px 90px; }
+
+/* celular: barra superior de vidrio y barra inferior flotante */
+@media (max-width: 1023px) {
+  .top {
+    background: var(--glass-thin); border-bottom: 1px solid var(--glass-hair);
+    box-shadow: var(--glass-spec);
+  }
+  .tabbar {
+    left: 10px; right: 10px; bottom: max(10px, env(safe-area-inset-bottom));
+    padding: 6px; border-radius: 26px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, .28), rgba(255, 255, 255, .08)), var(--glass-thin);
+    border: 1px solid var(--glass-edge); box-shadow: var(--glass-spec), var(--glass-shadow-lg);
+  }
+  :root[data-theme="dark"] .tabbar { background: var(--glass); }
+  .tabbar a { border-radius: 20px; }
+  .tabbar a.on { color: var(--text); background: var(--glass-hi); box-shadow: var(--glass-spec); }
+  main { margin-left: 0; padding: 22px 16px 120px; }
+  /* la barra inferior ahora flota: lo que va pegado abajo sube a su altura */
+  .cobrar { bottom: calc(96px + env(safe-area-inset-bottom)); border-radius: var(--r); }
+  #toasts { bottom: calc(100px + env(safe-area-inset-bottom)); }
+}
+@media (max-width: 1023px) and (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .tabbar { background: var(--glass); } }
+
+/* ---------- 5 · componentes ---------- */
+/* etiquetas en minúscula normal, sin versalitas forzadas */
+.eyebrow, .sec-t, .kpi .lbl, .hero-k .hk-l, .tbl th {
+  text-transform: none; letter-spacing: -.003em;
+}
+.eyebrow { font-size: 13px; font-weight: 560; color: var(--muted); }
+.tbl th { font-size: 12.5px; font-weight: 600; }
+.tbl tbody tr:hover { background: var(--surface-2); }
+
+/* segmentos y pestañas: riel de vidrio, pastilla clara */
+.seg, .tabs {
+  background: var(--glass-thin); border: 1px solid var(--glass-edge); border-radius: var(--r-pill);
+  padding: 3px; box-shadow: inset 0 1px 2px rgba(40, 25, 15, .06);
+}
+.seg button, .tabs button { border-radius: var(--r-pill); font-weight: 560; transition: background var(--t) var(--ease), color var(--t) var(--ease), box-shadow var(--t) var(--ease); }
+.seg button.on { background: var(--glass-hi); color: var(--text); box-shadow: var(--glass-spec), 0 2px 8px -3px rgba(40, 25, 15, .28); }
+.tabs-ind { border-radius: var(--r-pill); background: var(--glass-hi); box-shadow: var(--glass-spec), 0 2px 8px -3px rgba(40, 25, 15, .28); transition: transform var(--t-slow) var(--ease), width var(--t-slow) var(--ease); }
+
+/* botones */
+.btn { border-radius: var(--r-pill); background: var(--glass-thin); border-color: var(--glass-edge); font-weight: 580; transition: background var(--t-fast) var(--ease), box-shadow var(--t) var(--ease), transform var(--t-fast) var(--ease), border-color var(--t-fast); }
+.btn:hover { background: var(--glass-hi); box-shadow: var(--glass-spec); transform: none; }
+.btn:active { transform: scale(.98); }
+.btn-ghost { background: transparent; border-color: transparent; }
+.btn-primary { background: var(--brand); color: var(--brand-ink); border-color: transparent; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .18), 0 10px 22px -14px rgba(40, 25, 15, .7); }
+.btn-primary:hover { background: var(--brand-2); filter: none; }
+
+/* campos y selectores */
+input, select, textarea {
+  background: var(--glass-thin); border: 1px solid var(--glass-edge); border-radius: 14px;
+  box-shadow: inset 0 1px 2px rgba(40, 25, 15, .05);
+  transition: border-color var(--t-fast) var(--ease), box-shadow var(--t) var(--ease), background var(--t) var(--ease);
+}
+input:hover, select:hover, textarea:hover { border-color: var(--border-2); }
+input:focus, select:focus, textarea:focus { background: var(--glass-hi); border-color: var(--brand); box-shadow: 0 0 0 4px var(--ring); }
+select { -webkit-appearance: none; appearance: none; padding-right: 34px;
+  background-image: linear-gradient(45deg, transparent 50%, currentColor 50%), linear-gradient(135deg, currentColor 50%, transparent 50%);
+  background-position: calc(100% - 17px) 52%, calc(100% - 12px) 52%; background-size: 5px 5px; background-repeat: no-repeat; }
+select:focus { background-image: linear-gradient(45deg, transparent 50%, currentColor 50%), linear-gradient(135deg, currentColor 50%, transparent 50%); }
+
+/* interruptores y sliders */
+input[type=checkbox], input[type=radio] { accent-color: var(--brand); }
+input[type=range] { -webkit-appearance: none; appearance: none; height: 6px; padding: 0; min-height: 0; border-radius: 99px; background: var(--surface-3); border: 0; box-shadow: none; }
+input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 22px; height: 22px; border-radius: 50%; background: #fff; border: 1px solid var(--glass-hair); box-shadow: 0 2px 6px rgba(40, 25, 15, .25); transition: transform var(--t-fast) var(--ease); }
+input[type=range]:active::-webkit-slider-thumb { transform: scale(1.12); }
+
+/* insignias */
+.badge { border-radius: var(--r-pill); background: var(--glass-thin); border-color: var(--glass-edge); color: var(--muted); font-weight: 580; }
+.b-ok { background: var(--ok-soft); color: var(--ok); border-color: transparent; }
+
+/* diálogos y avisos: vidrio casi opaco (siempre hay texto) */
+dialog#modal { background: var(--glass-solid); border: 1px solid var(--glass-edge); border-radius: var(--r-lg); box-shadow: var(--glass-spec), var(--glass-shadow-lg); }
+#toasts > * { background: var(--glass-solid); border: 1px solid var(--glass-edge); border-radius: 16px; }
+
+/* ---------- 6 · Finanzas ---------- */
+.fin-head h1, .page-head h1 { font-size: 34px; }
+/* encabezado fijo de Finanzas: barra de vidrio en lugar de franja de papel */
+.fin-head {
+  background: var(--glass-thin); border: 1px solid var(--glass-edge); border-radius: var(--r);
+  padding: 12px 14px 12px 20px; box-shadow: var(--glass-spec), var(--glass-shadow);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+}
+@media (min-width: 1024px) { .fin-head { top: 12px; } }
+.fin-per { color: var(--muted); }
+.kpis { gap: 14px; }
+.kpi { padding: 18px 20px 18px; border-radius: var(--r); transition: background var(--t) var(--ease), box-shadow var(--t) var(--ease); }
+.kpi .lbl { font-size: 13px; font-weight: 560; color: var(--muted); }
+.kpi .val { font-size: 30px; font-weight: 640; letter-spacing: -.035em; line-height: 1.12; margin-top: 8px; color: var(--ink); }
+.kpi .sub { font-size: 13px; color: var(--muted); line-height: 1.45; }
+.kpi.ok .val { color: var(--ink); }
+.kpi.bad .val { color: var(--err); }
+.kpi .det { border-top: 1px solid var(--glass-hair); }
+.kpi .go { opacity: .35; transition: opacity var(--t-fast) var(--ease), transform var(--t) var(--ease); }
+.kpi.click:hover { transform: none; background: linear-gradient(180deg, rgba(255, 255, 255, .34), rgba(255, 255, 255, .06) 40%), var(--glass); box-shadow: var(--glass-spec), var(--glass-shadow-lg); border-color: var(--glass-edge); }
+.kpi.click:hover .go { opacity: .8; transform: translateX(2px); }
+.kpi.click:active { transform: scale(.995); }
+.info { background: var(--glass-thin); border-color: var(--glass-edge); color: var(--muted); }
+
+/* barra efectivo / transferencia */
+.bar2 { height: 6px; background: var(--info); opacity: .9; }
+.bar2 i { background: var(--ok); }
+.bar2-l { color: var(--muted); }
+
+/* cascada "¿Cuánto ganamos?" */
+.wf-bar { height: 8px; background: var(--surface-3); }
+.wf-bar i { background: var(--brand); opacity: .85; }
+.wf-neg .wf-bar i { background: var(--err); opacity: .55; }
+.wf-pos .wf-bar i { background: var(--ok); opacity: .7; }
+.wf-sub { border-top: 1px solid var(--glass-hair); }
+.wf-tot { border-top: 1px solid var(--border-2); }
+.wf-tot .wf-n { font-size: 26px; font-weight: 650; letter-spacing: -.03em; }
+.wf-ex { color: var(--muted); }
+
+.rank-n { background: var(--glass-thin); border: 1px solid var(--glass-edge); color: var(--text); }
+.rank-i:first-child .rank-n { background: var(--brand); color: var(--brand-ink); border-color: transparent; }
+.ana-head { border-top-color: var(--glass-hair); }
+
+/* ---------- 6b · resto de pantallas ---------- */
+/* etiquetas que seguían en mayúsculas (el reporte PDF no se toca) */
+.mk-l, .pk-cat-h, .dk-l, .pvg-v small, .bk-h, .bv-l, .bv-tag, .bv-total-l, .bv-parte-t, .debe-sec {
+  text-transform: none; letter-spacing: -.003em;
+}
+.bv-parte-t, .debe-sec { font-size: 13px; font-weight: 600; }
+
+/* cifras grandes en la misma tipografía */
+.bv-n, .bv-tag b, .bv-acc-t b, .bv-ef-n, .bv-total b#bv-tot-n, .chat-top b { font-family: var(--font); letter-spacing: -.03em; }
+
+/* el reporte PDF conserva su tipografía y colores propios */
+.rep-hoja h3, .rp-marca b, .rp-nom, .rp-big { font-family: Fraunces, Georgia, "Times New Roman", serif; }
+
+/* Bóveda: total del negocio como vidrio, no bloque oscuro */
+.bv-total {
+  background: linear-gradient(180deg, rgba(255, 255, 255, .24), rgba(255, 255, 255, 0) 40%), var(--glass);
+  color: var(--text); border: 1px solid var(--glass-edge); border-radius: var(--r);
+  box-shadow: var(--glass-spec), var(--glass-shadow);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+  padding: 18px 22px;
+}
+.bv-total-l { opacity: 1; color: var(--muted); font-size: 13px; font-weight: 560; }
+.bv-total b#bv-tot-n { font-weight: 650; font-size: 36px; }
+.bv-total-eq { opacity: 1; color: var(--muted); }
+.bv-total-eq b { color: var(--text); }
+
+/* botones de color: se respetan */
+.btn.btn-rojo { background: #b8352b; color: #fff; border-color: transparent; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .18), 0 10px 22px -14px rgba(120, 30, 20, .8); }
+.btn.btn-rojo:hover { background: #9e2c23; }
+.btn.btn-wa { background: #1d8048; color: #fff; border-color: transparent; }
+.btn.btn-wa:hover { background: #176a3b; }
+.btn.btn-danger { color: var(--err); }
+
+/* tarjetas de acento oscuro: la cifra hereda su color claro */
+.kpi.hl .val, .kpi.hl .lbl, .kpi.hl .sub, .hero-k.hl > b { color: inherit; }
+.kpi.hl { border-color: transparent; }
+
+/* mosaicos, selectores de opción y de persona */
+.tile, .pick, .ava-pick, .stk-c, .chip {
+  background: var(--glass-thin); border-color: var(--glass-edge);
+  box-shadow: var(--glass-spec);
+}
+.tile { border-radius: 18px; }
+.tile:hover:not(:disabled), .pick:hover:not(:disabled) { transform: none; background: var(--glass-hi); box-shadow: var(--glass-spec), 0 10px 24px -16px rgba(40, 25, 15, .45); border-color: var(--glass-edge); }
+.tile.on, .pick.on, .ava-pick.on { background: var(--glass-hi); border-color: var(--brand); box-shadow: var(--glass-spec), 0 0 0 3px var(--ring); }
+.chip.on { background: var(--glass-hi); border-color: var(--brand); color: var(--text); }
+
+/* barra "Total a cobrar": casi opaca para que no se transparente el catálogo */
+.cobrar { background: var(--glass-solid); box-shadow: 0 -10px 24px -18px rgba(40, 25, 15, .35); border-top: 1px solid var(--glass-hair);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat)); backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat)); }
+
+/* avisos */
+.alert { border-radius: 16px; }
+
+/* login: tarjeta de vidrio sobre el mismo fondo */
+.login-fondo { display: none; }
+.login-card {
+  background: linear-gradient(180deg, rgba(255, 255, 255, .26), rgba(255, 255, 255, 0) 40%), var(--glass);
+  border: 1px solid var(--glass-edge); border-radius: var(--r-lg);
+  box-shadow: var(--glass-spec), var(--glass-shadow-lg);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat)); backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+}
+
+/* ---------- 7 · accesibilidad y compatibilidad ---------- */
+/* sin backdrop-filter: superficies opacas para que el texto se lea */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  :root { --glass: rgba(250, 246, 241, .97); --glass-thin: rgba(244, 239, 233, .97); }
+  :root[data-theme="dark"] { --glass: rgba(32, 26, 22, .97); --glass-thin: rgba(42, 34, 29, .97); }
+}
+/* "reducir transparencia" del sistema */
+@media (prefers-reduced-transparency: reduce) {
+  :root { --glass: #f8f4ef; --glass-thin: #f1ece6; --glass-hi: #ffffff; --glass-solid: #fbf8f4; }
+  :root[data-theme="dark"] { --glass: #211a16; --glass-thin: #2a221d; --glass-hi: #3a3029; --glass-solid: #1c1612; }
+  .side, .top, .tabbar, .card, .kpi, .hero-k, .seg, .tabs, .fin-head, .bv-total, .cobrar, .login-card, #toasts > *, dialog#modal { -webkit-backdrop-filter: none; backdrop-filter: none; }
+  body::before { opacity: .35; }
+}
+/* "reducir movimiento" del sistema */
+@media (prefers-reduced-motion: reduce) {
+  .nav a, .btn, .seg button, .tabs button, .tabs-ind, .kpi, .icon-btn, input, select, textarea { transition: none !important; }
+  .btn:active, .kpi.click:active { transform: none; }
+}
+
+/* impresión (reporte PDF): sin fondo de color ni vidrio */
+@media print {
+  body::before { display: none !important; }
+  html { background: #fff; }
+}
