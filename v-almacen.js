@@ -300,83 +300,80 @@ VIEWS['entregar'] = async (v, q) => {
       };
       return;
     }
-    // café por gramos
-    const chips = p.gramos_por_unidad == 1000 ? [[500, '500 g'], [1000, '1 kg'], [2000, '2 kg'], [5000, '5 kg']]
-      : [[+p.gramos_por_unidad, `1 bolsa (${fnum(p.gramos_por_unidad)} g)`], [2 * p.gramos_por_unidad, '2 bolsas']];
-    box.innerHTML = `<div class="paso"><div class="paso-n">4</div><div class="paso-b"><div class="paso-t">¿Cuánto retiras y en qué presentaciones?</div>
-      <div class="inline">
-        <div class="chips">${chips.map(([g, l]) => `<button type="button" class="chip" data-g="${g}" ${g > p.stock ? 'disabled' : ''}>${l}</button>`).join('')}</div>
-        <label class="inline small"><input type="number" id="ret" min="1" step="any" inputmode="decimal" value="${retirar || ''}" style="width:120px" placeholder="gramos"> g · hay ${cant(p.stock)}</label>
-      </div>
-      <div class="pres-grid" style="margin-top:14px">${p.presentaciones.map((pr) => `<div class="pres ${estado[pr.id] ? 'on' : ''}" data-box="${pr.id}">
+    // café por gramos: solo se capturan piezas; los gramos se calculan y se descuentan solos (sin merma)
+    const prs = p.presentaciones.filter((pr) => +pr.gramos > 0);
+    const r2 = (n) => Math.round(n * 10000) / 10000;
+    const usado = () => r2(prs.reduce((s, pr) => s + (estado[pr.id] || 0) * +pr.gramos, 0));
+    const libre = () => Math.max(0, p.stock - usado());
+    const maxDe = (pr) => (estado[pr.id] || 0) + Math.floor((libre() + 0.01) / +pr.gramos);
+    const subt = (pr) => es14(pr.gramos) ? '35 piezas = 500 g'
+      : Math.abs(pr.gramos / GRAMOS_14 - Math.round(pr.gramos / GRAMOS_14)) < 0.001 && pr.gramos > GRAMOS_14 ? `= ${Math.round(pr.gramos / GRAMOS_14)} piezas de 14 g`
+      : `${fnum(pr.gramos, 1)} g c/u`;
+    box.innerHTML = `<div class="paso"><div class="paso-n">4</div><div class="paso-b"><div class="paso-t">¿Cuántas piezas de cada presentación?</div>
+      <div class="muted small" style="margin:-4px 0 12px">Solo escribe las piezas. Los gramos se descuentan solos del almacén · hay <b>${cant(p.stock)}</b> de ${esc(p.sku)}</div>
+      <div class="pres-grid">${prs.map((pr) => `<div class="pres ${estado[pr.id] ? 'on' : ''}" data-box="${pr.id}">
         <div class="t">${esc(pr.nombre)}</div>
-        <div class="s">${es14(pr.gramos) ? '35 piezas = 500 g' : pr.gramos && Math.abs(pr.gramos / GRAMOS_14 - Math.round(pr.gramos / GRAMOS_14)) < 0.001 ? `cada uno = ${Math.round(pr.gramos / GRAMOS_14)} piezas de 14 g` : `${fnum(pr.gramos, 1)} g c/u`} · ${money0(pr.precio_pieza)}</div>
-        <div class="stepper stepper-sm"><button type="button" data-m="${pr.id}" data-d="-1">−</button>
-          <input type="number" min="0" step="1" inputmode="numeric" data-pr="${pr.id}" value="${estado[pr.id] || ''}" placeholder="0">
-          <button type="button" data-m="${pr.id}" data-d="1">+</button></div>
-        <button type="button" class="link small" data-fill="${pr.id}">Llenar con lo que resta</button></div>`).join('')}</div>
+        <div class="s">${subt(pr)} · ${money0(pr.precio_pieza)}</div>
+        <div class="stepper stepper-sm"><button type="button" data-m="${pr.id}" data-d="-1" aria-label="Quitar una pieza de ${esc(pr.nombre)}">−</button>
+          <input type="number" min="0" step="1" inputmode="numeric" data-pr="${pr.id}" value="${estado[pr.id] || ''}" placeholder="0" aria-label="Piezas de ${esc(pr.nombre)}">
+          <button type="button" data-m="${pr.id}" data-d="1" aria-label="Agregar una pieza de ${esc(pr.nombre)}">+</button></div>
+        <div class="pres-q"><button type="button" class="chip chip-sm" data-m="${pr.id}" data-d="5">+5</button><button type="button" class="chip chip-sm" data-m="${pr.id}" data-d="10">+10</button><button type="button" class="link small" data-max="${pr.id}">Máx <span data-maxn="${pr.id}"></span></button></div>
+        <div class="pres-g" data-g="${pr.id}"></div></div>`).join('')}</div>
       <div class="gauge" id="gauge"><i></i></div>
       <div class="calc" id="calc"></div>
       <div id="avisos"></div>
       <button class="btn btn-primary btn-lg" id="go">Producir y entregar a ${esc(vendNombre())}</button></div></div>`;
 
-    const usado = () => p.presentaciones.reduce((s, pr) => s + (estado[pr.id] || 0) * pr.gramos, 0);
     const upd = () => {
-      const u = Math.round(usado() * 100) / 100;
-      let merma = Math.round((retirar - u) * 100) / 100;
-      if (Math.abs(merma) < 0.01) merma = 0;
-      const valor = p.presentaciones.reduce((s, pr) => s + (estado[pr.id] || 0) * pr.precio_pieza, 0);
-      const piezas = Object.values(estado).reduce((s, x) => s + (x || 0), 0);
+      const u = usado();
+      const valor = prs.reduce((s, pr) => s + (estado[pr.id] || 0) * pr.precio_pieza, 0);
+      const piezas = prs.reduce((s, pr) => s + (estado[pr.id] || 0), 0);
+      const pasa = u > p.stock + 0.01;
       const g = $('#gauge i', box);
-      g.style.width = `${retirar ? Math.min(100, (u / retirar) * 100) : 0}%`;
-      g.parentElement.classList.toggle('over', merma < 0);
-      g.parentElement.classList.toggle('full', retirar > 0 && merma === 0);
-      $$('.pres', box).forEach((el) => el.classList.toggle('on', !!estado[el.dataset.box]));
+      g.style.width = `${p.stock ? Math.min(100, (u / p.stock) * 100) : 0}%`;
+      g.parentElement.classList.toggle('over', pasa);
+      prs.forEach((pr) => {
+        const n = estado[pr.id] || 0;
+        $(`[data-box="${pr.id}"]`, box).classList.toggle('on', n > 0);
+        $(`[data-g="${pr.id}"]`, box).textContent = n ? `${fnum(n)} × ${pr.nombre} = ${cant(r2(n * pr.gramos))}` : '';
+        $(`[data-maxn="${pr.id}"]`, box).textContent = fnum(Math.max(0, maxDe(pr)));
+      });
       $('#calc', box).innerHTML = `
-        <div><div class="l">Retiras</div><div class="v">${cant(retirar)}</div></div>
-        <div><div class="l">Piezas producidas</div><div class="v">${fnum(piezas)} pz</div><div class="l">${cant(u)}</div></div>
-        <div><div class="l">${merma >= 0 ? 'Merma' : 'Te faltan'}</div><div class="v" style="color:${merma < 0 ? 'var(--err)' : merma > 0 ? 'var(--warn)' : 'var(--ok)'}">${fnum(Math.abs(merma), 2)} g</div></div>
-        ${adm ? `<div><div class="l">Costo</div><div class="v">${money(retirar * p.costo_base)}</div></div>` : ''}
+        <div><div class="l">Piezas</div><div class="v">${fnum(piezas)} pz</div></div>
+        <div><div class="l">Se descuenta del almacén</div><div class="v">${cant(u)}</div></div>
+        <div><div class="l">Queda en almacén</div><div class="v" style="color:${pasa ? 'var(--err)' : 'inherit'}">${cant(Math.max(0, r2(p.stock - u)))}</div></div>
+        ${adm ? `<div><div class="l">Costo</div><div class="v">${money(u * p.costo_base)}</div></div>` : ''}
         <div><div class="l">Valor al público</div><div class="v">${money(valor)}</div></div>`;
-      const av = [];
-      if (retirar > p.stock) av.push(`<div class="alert alert-err">Solo hay ${cant(p.stock)} en stock.</div>`);
-      if (merma < 0) av.push(`<div class="alert alert-err">Las piezas suman ${cant(u)} y solo retiras ${cant(retirar)}. Quita piezas o retira más.</div>`);
-      else if (merma > 0 && piezas > 0) av.push(`<div class="alert alert-warn">Quedarán <b>${fnum(merma, 2)} g</b> sin producir. Se registrarán como merma${adm ? ` (${money(merma * p.costo_base)})` : ''}.</div>`);
-      else if (piezas > 0 && merma === 0) av.push('<div class="alert alert-ok">✓ Cuadra exacto, sin merma.</div>');
-      $('#avisos', box).innerHTML = av.join('');
-      return { merma, piezas, u };
+      $('#avisos', box).innerHTML = pasa ? `<div class="alert alert-err">Esas piezas necesitan ${cant(u)} y en almacén solo hay ${cant(p.stock)}. Quita algunas piezas.</div>` : '';
+      $('#go', box).disabled = !piezas || pasa;
+      return { piezas, u, pasa };
     };
-    $('#ret', box).addEventListener('input', (e) => { retirar = +e.target.value || 0; upd(); });
-    $$('[data-g]', box).forEach((b) => b.addEventListener('click', () => { retirar = +b.dataset.g; $('#ret', box).value = retirar; upd(); }));
-    $$('[data-pr]', box).forEach((inp) => inp.addEventListener('input', () => { estado[inp.dataset.pr] = parseInt(inp.value) || 0; upd(); }));
-    $$('[data-m]', box).forEach((b) => b.addEventListener('click', () => {
-      const id = b.dataset.m;
-      estado[id] = Math.max(0, (estado[id] || 0) + +b.dataset.d);
+    const poner = (id, n) => {
+      estado[id] = Math.max(0, n | 0);
       $(`[data-pr="${id}"]`, box).value = estado[id] || '';
       upd();
+    };
+    $$('[data-pr]', box).forEach((inp) => inp.addEventListener('input', () => { estado[inp.dataset.pr] = Math.max(0, parseInt(inp.value) || 0); upd(); }));
+    $$('[data-m]', box).forEach((b) => b.addEventListener('click', () => {
+      const pr = prs.find((x) => x.id === +b.dataset.m);
+      const d = +b.dataset.d, n = (estado[pr.id] || 0) + d, mx = maxDe(pr);
+      poner(pr.id, d > 0 ? Math.min(n, mx) : n);
+      if (d > 0 && n > mx) toast('Ya no alcanza el café del almacén para más piezas', true);
     }));
-    $$('[data-fill]', box).forEach((b) => b.addEventListener('click', () => {
-      const pr = p.presentaciones.find((x) => x.id === +b.dataset.fill);
-      estado[pr.id] = 0;
-      const n = Math.max(0, Math.floor((retirar - usado() + 0.01) / pr.gramos));
-      estado[pr.id] = n;
-      $(`[data-pr="${pr.id}"]`, box).value = n || '';
-      upd();
-    }));
+    $$('[data-max]', box).forEach((b) => b.addEventListener('click', () => { const pr = prs.find((x) => x.id === +b.dataset.max); poner(pr.id, maxDe(pr)); }));
     upd();
     $('#go', box).onclick = async (e) => {
-      const { merma, piezas } = upd();
-      if (retirar <= 0) return toast('Indica cuánto vas a retirar', true);
-      if (retirar > p.stock) return toast('No hay suficiente stock', true);
+      const { piezas, u, pasa } = upd();
       if (!piezas) return toast('Indica cuántas piezas de cada presentación', true);
-      if (merma < 0) return toast('Las piezas exceden lo retirado', true);
-      const lista = p.presentaciones.filter((pr) => estado[pr.id] > 0).map((pr) => `• ${estado[pr.id]} × ${pr.nombre}`).join('\n');
-      const ok = await confirmar('Confirmar producción', `${p.sku}: se retiran ${cant(retirar)} del almacén para ${vendNombre()}.\n\n${lista}${merma > 0 ? `\n\n⚠ Merma: ${fnum(merma, 2)} g${adm ? ` (${money(merma * p.costo_base)})` : ''}` : ''}`, 'Producir y entregar');
+      if (pasa) return toast('No hay suficiente café en almacén', true);
+      const sel = prs.filter((pr) => estado[pr.id] > 0);
+      const lista = sel.map((pr) => `• ${estado[pr.id]} × ${pr.nombre}`).join('\n');
+      const ok = await confirmar('Confirmar producción', `${p.sku} para ${vendNombre()}:\n\n${lista}\n\nSe descuentan ${cant(u)} del almacén.`, 'Producir y entregar');
       if (!ok) return;
       await run(e.target, async () => {
-        const items = p.presentaciones.filter((pr) => estado[pr.id] > 0).map((pr) => ({ presentacion_id: pr.id, piezas: estado[pr.id] }));
-        const r = await API.rpc('entregar', { p_vendedor: vendId, p_producto: p.id, p_retirar: retirar, p_items: items });
-        await despuesDeEntregar(`Entregado a ${vendNombre()}${+r.merma ? ` · merma ${fnum(r.merma, 2)} g` : ''}`);
+        const items = sel.map((pr) => ({ presentacion_id: pr.id, piezas: estado[pr.id] }));
+        await API.rpc('entregar', { p_vendedor: vendId, p_producto: p.id, p_retirar: Math.min(u, +p.stock), p_items: items });
+        await despuesDeEntregar(`Entregado a ${vendNombre()} · ${fnum(piezas)} pz`);
       });
     };
   }

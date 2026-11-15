@@ -2,6 +2,8 @@
    VENTAS — un solo panel: elegir vendedor → vender → pedidos → desempeño
    (el admin elige vendedor; el vendedor se ve solo a sí mismo)
    ===================================================================== */
+// vendedores que solo entregan a domicilio (en taxi): sin «En tienda» ni «Paquetería»
+const SOLO_DOMICILIO = ['rola'];
 VIEWS['ventas'] = async (v, q) => {
   const admin = ME.rol === 'admin';
   const [perfil, catalogo, vendedores, municipios] = await Promise.all([
@@ -37,7 +39,8 @@ VIEWS['ventas'] = async (v, q) => {
   const extraN = () => (hayTr() ? Math.max(0, +extra || 0) : 0);
   const extraSub = () => (extraN() ? `es ${admin ? `de ${esc(vend().nombre)}` : 'tuyo'} · no cuenta como venta` : 'Toca si el cliente te transfirió propina o servicio');
   const efectivoN = (t) => (metodo === 'efectivo' ? t : metodo === 'mixto' ? Math.max(0, +efMix || 0) : 0);
-  const puedePaq = () => !!vend()?.envio_nacional;
+  const soloDom = () => SOLO_DOMICILIO.includes(vend()?.usuario); // solo entrega a domicilio (taxi)
+  const puedePaq = () => !!vend()?.envio_nacional && !soloDom();
   const envio = () => (tipo === 'paqueteria' ? +perfil.envio_cobro_paqueteria : tipo === 'local' ? +perfil.envio_cobro_local : 0); // lo que paga el cliente
   const costoPaq = () => (tipo === 'paqueteria' ? +(mun()?.precio || 0) : 0); // lo que se le paga a la paquetería
   const opDe = (id) => catalogo.find((o) => o.opcion_id === +id);
@@ -62,6 +65,7 @@ VIEWS['ventas'] = async (v, q) => {
         <span class="ava-wrap">${avatar(x)}</span>
         <span class="ava-name">${esc(x.nombre)}</span>
         <span class="ava-sub" data-sub="${x.id}">&nbsp;</span>
+        <span class="ava-vender" data-vender>Vender</span>
       </button>`).join('')}</div>` : ''}
     <div class="ventas-tabs-row">${tabsHTML('ventas', [['vender', 'Vender'], ['pedidos', 'Pedidos'], ['tablero', 'Tablero'], ['inv', 'Inventario'], ...(admin ? [['equipo', 'Equipo']] : [])], q.pend ? 'pedidos' : 'vender')}
       ${admin ? '<button type="button" class="btn btn-rojo" id="btn-exportar" title="Reporte de ventas en PDF para el vendedor">📄 Exportar</button>' : ''}</div>
@@ -87,6 +91,10 @@ VIEWS['ventas'] = async (v, q) => {
     const keep = limpiarForm ? [] : ['cliente', 'telefono', 'nota'].map((id) => [id, $('#' + id, v)?.value || '']);
     limpiarForm = false;
     if (tipo === 'paqueteria' && !puedePaq()) tipo = 'local';
+    if (soloDom()) tipo = 'local';
+    const tiposEntrega = soloDom()
+      ? [['local', '🚕', 'Envío a domicilio', money0(perfil.comision_venta || 100)]]
+      : [['tienda', '🏪', 'En tienda', 'Sin cargo'], ['local', '🛵', 'Envío local', 'Sin cargo'], ['paqueteria', '📦', 'Paquetería', tipo === 'paqueteria' && mun() ? `${esc(mun().nombre)} · cliente paga +${money0(perfil.envio_cobro_paqueteria)}` : `Cliente paga +${money0(perfil.envio_cobro_paqueteria)} · solo transferencia`]];
     if (tipo === 'paqueteria') metodo = 'transferencia';
     const hayStock = inv.some((i) => i.piezas > 0);
     box.innerHTML = `
@@ -94,8 +102,8 @@ VIEWS['ventas'] = async (v, q) => {
         ${cart.length ? '<button type="button" class="btn btn-sm" id="vaciar">Empezar de nuevo</button>' : ''}</div>
       ${!hayStock ? `<div class="alert alert-warn">${admin ? `${esc(vend().nombre)} no tiene piezas. Entrégale producto en <a href="#/entregar?v=${vendId}">Producir y entregar</a>.` : 'No tienes piezas para vender. Pide producto en "Pedir producto".'}</div>` : ''}
       <div class="paso"><div class="paso-n">1</div><div class="paso-b"><div class="paso-t">¿Cómo se entrega?</div>
-        <div class="tiles tiles-3" id="tipos">
-          ${[['tienda', '🏪', 'En tienda', 'Sin cargo'], ['local', '🛵', 'Envío local', 'Sin cargo'], ['paqueteria', '📦', 'Paquetería', tipo === 'paqueteria' && mun() ? `${esc(mun().nombre)} · cliente paga +${money0(perfil.envio_cobro_paqueteria)}` : `Cliente paga +${money0(perfil.envio_cobro_paqueteria)} · solo transferencia`]].map(([k, e, t, s]) => {
+        <div class="tiles ${tiposEntrega.length === 1 ? 'tiles-1' : 'tiles-3'}" id="tipos">
+          ${tiposEntrega.map(([k, e, t, s]) => {
             const lock = k === 'paqueteria' && !puedePaq();
             return `<button type="button" class="tile ${tipo === k ? 'on' : ''}" data-t="${k}" ${lock ? 'disabled' : ''}>
               <span class="tile-e">${e}</span><span class="tile-t">${t}</span><span class="tile-s">${lock ? `${admin ? 'Actívalo en Usuarios' : 'No habilitado'}` : s}</span></button>`;
@@ -124,8 +132,8 @@ VIEWS['ventas'] = async (v, q) => {
         </div>
         <div class="${hayTr() ? '' : 'hidden'}" id="trbox">
           <button type="button" class="extra-btn ${extraN() ? 'on' : ''}" id="extrabtn" aria-expanded="${extraAbierto || !!extraN()}">
-            <span class="extra-e">🎁</span>
-            <span class="extra-t"><b>Propina para el vendedor</b><small id="extrasub">${extraSub()}</small></span>
+            <span class="extra-e">💵<i>+</i></span>
+            <span class="extra-t"><b>Servicio extra o propina</b><small id="extrasub">${extraSub()}</small></span>
             <span class="extra-v" id="extraval">${extraN() ? '+' + money0(extraN()) : '+'}</span>
           </button>
           <div class="extra-box ${extraAbierto || extraN() ? '' : 'hidden'}" id="extrabox">
@@ -582,7 +590,11 @@ VIEWS['ventas'] = async (v, q) => {
     await pintarPedidos(r);
   }
 
-  $$('#avas .ava-pick', v).forEach((b) => b.addEventListener('click', () => {
+  $$('#avas .ava-pick', v).forEach((b) => b.addEventListener('click', (e) => {
+    if (e.target.closest('[data-vender]')) { // botón «Vender»: abre la venta de ese vendedor
+      irTab('vender');
+      setTimeout(() => $('#nueva', v)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60);
+    }
     if (b.dataset.v === vendId) return;
     vendId = b.dataset.v; store.set('ventas.vend', vendId);
     cart = []; ajuste.valor = ''; tipo = 'local'; munId = null; metodo = ''; efMix = ''; extra = ''; extraAbierto = false;

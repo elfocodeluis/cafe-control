@@ -1547,3 +1547,40 @@ body.arrastrando .cesta { border-color: var(--accent); background: var(--accent-
 .rp-t tr.rp-dia td b { color: #5b3a26; font-size: 12px; }
 .rp-t tr.rp-dia td span { float: right; color: #7c6c60; font-size: 11px; }
 .rp-t tbody tr.rp-dia:not(:first-child) td { border-top: 14px solid #fff; }
+
+/* ---- botón «Vender» en cada tarjeta de vendedor (Ventas · admin) ---- */
+.ava-pick { position: relative; }
+.ava-vender { position: absolute; top: 10px; right: 10px; padding: 5px 12px; border-radius: 999px; background: var(--brand); color: #fff; font-size: 12.5px; font-weight: 700; line-height: 1.2; box-shadow: 0 6px 14px -8px var(--brand); }
+.ava-vender:hover { filter: brightness(1.08); }
+
+/* ---- una sola forma de entrega (vendedor solo a domicilio) ---- */
+.tiles-1 { grid-template-columns: 1fr; }
+.tiles-1 .tile { flex-direction: row; display: flex; align-items: center; justify-content: center; gap: 14px; padding: 16px 18px; }
+.tiles-1 .tile-e { font-size: 34px; }
+.tiles-1 .tile-t { font-size: 17px; }
+.tiles-1 .tile-s { font-size: 15px; font-weight: 700; }
+
+/* ---- carrito más grande y visible ---- */
+.cesta { padding: 18px; border-width: 2px; border-radius: 22px; }
+.cesta-h { gap: 16px; }
+.cesta-h b { font-size: 21px; }
+.cesta-h .small { font-size: 15px; }
+.cesta-ico { font-size: 46px; }
+.cesta-ico i { top: -4px; right: -12px; min-width: 26px; height: 26px; font-size: 14px; line-height: 26px; }
+.cart { margin-top: 14px; border-radius: 18px; }
+.cart-l { padding: 14px 14px; font-size: 16px; grid-template-columns: 1fr auto 90px; }
+.cart-s { font-size: 18px; font-weight: 750; }
+.qty button { width: 40px; height: 40px; font-size: 22px; }
+.qty span { min-width: 34px; font-size: 17px; }
+
+/* ---- servicio extra o propina: billete con «+» ---- */
+.extra-e { position: relative; }
+.extra-e i { position: absolute; right: -8px; bottom: -6px; width: 20px; height: 20px; border-radius: 50%; background: var(--ok); color: #fff; font-size: 15px; font-style: normal; font-weight: 800; line-height: 20px; text-align: center; }
+
+/* Producir y entregar: solo piezas, gramos automáticos */
+.pres-q { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.chip.chip-sm { padding: 4px 10px; font-size: 12.5px; min-height: 30px; }
+.pres-q .link { margin-left: auto; }
+.pres-g { font-size: 12px; font-weight: 600; color: var(--brand); min-height: 16px; font-variant-numeric: tabular-nums; }
+#pdet .gauge i { background: var(--brand); }
+#pdet .gauge.over i { background: var(--err); }

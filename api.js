@@ -9,6 +9,39 @@
       auth: { persistSession: true, autoRefreshToken: true },
     });
   }
+  // Presentaciones siempre de menor a mayor (3.5 g, 14 g, 28 g, 125 g, 500 g, 1 kg…) en todos los paneles.
+  const gramosDe = (x) => {
+    if (x && x.gramos != null && !isNaN(+x.gramos)) return +x.gramos;
+    const t = String((x && (x.presentacion || x.nombre || x.descripcion)) || '').toLowerCase().replace(',', '.');
+    if (/medio\s*kilo|½\s*kg/.test(t)) return 500;
+    const m = t.match(/(\d+(?:\.\d+)?)\s*(kg|kilo|g)\b/);
+    return m ? +m[1] * (m[2] === 'g' ? 1 : 1000) : Infinity;
+  };
+  const ordenar = (arr) => {
+    const grupos = new Map();
+    const llave = (x) => x.sku ?? x.producto_id ?? x.producto ?? '';
+    arr.forEach((x) => { const k = llave(x); if (!grupos.has(k)) grupos.set(k, grupos.size); });
+    return arr.map((x, i) => [x, i]).sort(([a, i], [b, j]) =>
+      grupos.get(llave(a)) - grupos.get(llave(b)) || gramosDe(a) - gramosDe(b) || i - j).map(([x]) => x);
+  };
+  function ordenarPres(d) {
+    if (Array.isArray(d)) {
+      d.forEach(ordenarPres);
+      const o = d[0];
+      // listas de inventario/catálogo (no movimientos ni solicitudes, que van por fecha)
+      if (o && typeof o === 'object' && 'presentacion_id' in o && !('id' in o) && !('fecha' in o)) {
+        const s = ordenar(d); s.forEach((x, i) => { d[i] = x; });
+      }
+    } else if (d && typeof d === 'object') {
+      for (const k in d) {
+        if (k === 'presentaciones' && Array.isArray(d[k])) d[k].sort((a, b) => gramosDe(a) - gramosDe(b));
+        ordenarPres(d[k]);
+      }
+    }
+    return d;
+  }
+  window.gramosDe = gramosDe;
+
   const TOKEN_KEY = 'cafe_dev_token';
   const store = {
     get: () => { try { return localStorage.getItem(TOKEN_KEY); } catch { return null; } },
@@ -74,7 +107,7 @@
         if (sb) {
           const { data, error } = await sb.rpc(fn, params);
           if (error) throw new Error(error.message);
-          return data;
+          return ordenarPres(data);
         }
         const r = await fetch('/dev/rpc/' + fn, {
           method: 'POST',
@@ -83,7 +116,7 @@
         });
         const j = await r.json();
         if (!r.ok) throw new Error(j.message);
-        return j.data;
+        return ordenarPres(j.data);
       } catch (e) {
         throw new Error(traducir(e.message));
       }
