@@ -860,6 +860,9 @@ const pagoTr = (v) => (+v.pago_transfer || 0) + (+v.extra || 0);       // lo que
 const retenido = (v) => Math.min(+v.comision || 0, +v.pago_efectivo || 0); // comisión que el vendedor se queda del efectivo
 function pagoBadges(v, largo) {
   if (v.anulada) return '<span class="badge b-err">Cancelada</span>';
+  if (v.credito) return +v.por_cobrar > 0
+    ? `<span class="badge b-warn" title="Venta a crédito: se cobra en Deudores (Finanzas)">💳 ${largo ? 'Crédito · debe ' : 'debe '}${money0(v.por_cobrar)}</span>`
+    : `<span class="badge b-ok">💳 ${largo ? 'Crédito pagado' : 'pagado'}</span>`;
   const m = v.metodo;
   const lbl = m === 'mixto' ? (largo ? `Mixto · 💵 ${money0(v.pago_efectivo)} + 🏦 ${money0(v.pago_transfer)}` : 'Mixto')
     : m === 'transferencia' ? (largo ? 'Transferencia' : 'Transf.') : 'Efectivo';

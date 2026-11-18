@@ -31,6 +31,7 @@ VIEWS['ventas'] = async (v, q) => {
   let inv = [];
   let cart = []; // {opcion_id, promo, cantidad}
   let tipo = 'local', metodo = '', ajuste = { modo: 'desc', valor: '' };
+  let abono = '', abonoCta = 'banco'; // venta a crédito (solo admin): lo que paga hoy y a dónde entra
   municipios.sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
   let munId = null; // municipio de destino (paquetería)
   const mun = () => municipios.find((m) => m.id === munId);
@@ -95,7 +96,7 @@ VIEWS['ventas'] = async (v, q) => {
     const tiposEntrega = soloDom()
       ? [['local', '🚕', 'Envío a domicilio', money0(perfil.comision_venta || 100)]]
       : [['tienda', '🏪', 'En tienda', 'Sin cargo'], ['local', '🛵', 'Envío local', 'Sin cargo'], ['paqueteria', '📦', 'Paquetería', tipo === 'paqueteria' && mun() ? `${esc(mun().nombre)} · cliente paga +${money0(perfil.envio_cobro_paqueteria)}` : `Cliente paga +${money0(perfil.envio_cobro_paqueteria)} · solo transferencia`]];
-    if (tipo === 'paqueteria') metodo = 'transferencia';
+    if (tipo === 'paqueteria' && metodo !== 'credito') metodo = 'transferencia';
     const hayStock = inv.some((i) => i.piezas > 0);
     box.innerHTML = `
       <div class="card-head"><h2>Nueva venta${admin ? ` · <span class="brand-t">${esc(vend().nombre)}</span>` : ''}</h2>
@@ -121,11 +122,18 @@ VIEWS['ventas'] = async (v, q) => {
           <label class="field"><span>Nombre del cliente</span><input id="cliente" list="dl-clientes" placeholder="Ej. Tienda Lupita" autocomplete="off"><datalist id="dl-clientes"></datalist></label>
           <label class="field"><span>Teléfono <i class="muted" id="tel-nota">(opcional)</i></span><input id="telefono" type="tel" inputmode="tel" placeholder="10 dígitos"></label>
         </div>
-        <div class="tiles tiles-3" id="metodos" style="margin-top:12px">
+        <div class="tiles tiles-3 ${admin ? 'tiles-4' : ''}" id="metodos" style="margin-top:12px">
           <button type="button" class="tile ${metodo === 'efectivo' ? 'on' : ''}" data-m="efectivo" ${tipo === 'paqueteria' ? 'disabled' : ''}><span class="tile-e">💵</span><span class="tile-t">Efectivo</span><span class="tile-s">${tipo === 'paqueteria' ? 'No aplica en paquetería' : 'Se cobra en mano'}</span></button>
           <button type="button" class="tile ${metodo === 'transferencia' ? 'on' : ''}" data-m="transferencia"><span class="tile-e">🏦</span><span class="tile-t">Transferencia</span><span class="tile-s">Se verifica en el banco</span></button>
           <button type="button" class="tile ${metodo === 'mixto' ? 'on' : ''}" data-m="mixto" ${tipo === 'paqueteria' ? 'disabled' : ''}><span class="tile-e">🔀</span><span class="tile-t">Mixto</span><span class="tile-s">${tipo === 'paqueteria' ? 'No aplica en paquetería' : 'Parte y parte'}</span></button>
+          ${admin ? `<button type="button" class="tile ${metodo === 'credito' ? 'on' : ''}" data-m="credito"><span class="tile-e">💳</span><span class="tile-t">A crédito</span><span class="tile-s">Paga después · solo admin</span></button>` : ''}
         </div>
+        ${admin ? `<div class="credbox ${metodo === 'credito' ? '' : 'hidden'}" id="credbox">
+          <div class="small muted">Para clientes de confianza. La venta queda en <b>Deudores</b> hasta que pague; el dinero entra cuando lo cobres.</div>
+          <div class="row" style="margin-top:10px">
+            <label class="field"><span>¿Paga algo hoy? <i class="muted">(opcional)</i></span><input id="abono" type="number" min="0" step="any" inputmode="decimal" placeholder="0" value="${esc(abono)}"></label>
+            <div class="field"><span>¿Cómo lo pagó?</span><div class="seg seg-sm" id="abcta"><button type="button" data-c="banco" class="${abonoCta === 'banco' ? 'on' : ''}">🏦 Transferencia</button><button type="button" data-c="caja" class="${abonoCta === 'caja' ? 'on' : ''}">💵 Efectivo</button></div></div>
+          </div></div>` : ''}
         <div class="row ${metodo === 'mixto' ? '' : 'hidden'}" id="mixbox" style="margin-top:12px">
           <label class="field"><span>💵 ¿Cuánto pagó en efectivo?</span><input id="efmix" type="number" min="1" step="any" inputmode="decimal" placeholder="Ej. 200" value="${esc(efMix)}"></label>
           <div class="field"><span>🏦 El resto por transferencia</span><div class="mix-resto" id="mixresto">—</div></div>
@@ -166,10 +174,14 @@ VIEWS['ventas'] = async (v, q) => {
     $$('#metodos .tile', box).forEach((b) => b.addEventListener('click', () => {
       metodo = b.dataset.m; $$('#metodos .tile', box).forEach((x) => x.classList.toggle('on', x === b));
       $('#mixbox', box).classList.toggle('hidden', metodo !== 'mixto'); $('#trbox', box).classList.toggle('hidden', !hayTr());
+      $('#credbox', box)?.classList.toggle('hidden', metodo !== 'credito');
+      pintarCarrito();
       if (metodo === 'mixto') $('#efmix', box).focus();
       totales();
     }));
     $('#efmix', box).addEventListener('input', (e) => { efMix = e.target.value; totales(); });
+    $('#abono', box)?.addEventListener('input', (e) => { abono = e.target.value; totales(); });
+    $$('#abcta [data-c]', box).forEach((b) => b.addEventListener('click', () => { abonoCta = b.dataset.c; $$('#abcta [data-c]', box).forEach((x) => x.classList.toggle('on', x === b)); FX.tap(); totales(); }));
     const pintaExtra = () => {
       $('#extrabtn', box).classList.toggle('on', !!extraN());
       $('#extraval', box).textContent = extraN() ? '+' + money0(extraN()) : '+';
@@ -353,7 +365,7 @@ VIEWS['ventas'] = async (v, q) => {
   function pintarCarrito() {
     const box = $('#carrito', v);
     const tn = $('#tel-nota', v);
-    if (tn) { const req = cart.some((l) => opDe(l.opcion_id)?.paquete); tn.textContent = req ? '(obligatorio: lleva Pack o 3×2)' : '(opcional)'; tn.classList.toggle('tel-req', req); }
+    if (tn) { const req = cart.some((l) => opDe(l.opcion_id)?.paquete), cred = metodo === 'credito'; tn.textContent = cred ? '(obligatorio para crédito)' : req ? '(obligatorio: lleva Pack o 3×2)' : '(opcional)'; tn.classList.toggle('tel-req', req || cred); }
     const pz = cart.reduce((s, l) => s + piezasLinea(l), 0);
     box.classList.toggle('llena', !!cart.length);
     box.innerHTML = `<div class="cesta-h"><span class="cesta-ico" id="cesta-ico">🛒${pz ? `<i>${pz}</i>` : ''}</span>
@@ -395,9 +407,10 @@ VIEWS['ventas'] = async (v, q) => {
     const deQue = com - ret > 0 && ex ? ' (comisión + extra)' : ex ? ' (el extra)' : ' de comisión';
     if (debe > 0 && hayTr()) partesPago.push(admin ? `se le deben ${money0(debe)}${deQue} a ${quien}` : `se te deben ${money0(debe)}${deQue}`);
     if (paq && hayTr()) partesPago.push(`${money0(paq)} a la paquetería`);
+    if (metodo === 'credito') { partesPago.length = 0; const ab = Math.max(0, +abono || 0); partesPago.push(ab > 0 ? `${abonoCta === 'caja' ? '💵' : '🏦'} paga hoy <b>${money0(ab)}</b> · 💳 <b>queda a deber ${money0(Math.max(0, t - ab))}</b>` : `💳 <b>queda a deber ${money0(t)}</b>`); }
     const linea2 = !cart.length ? '' : !metodo ? `Comisión ${admin ? `de ${quien}` : ''} ${money0(com)}${paq ? ` · paquetería ${money0(paq)}` : ''} · elige cómo paga` : partesPago.join(' · ');
     $('#vdesg', v).innerHTML = partes.join(' · ') + (linea2 ? `<br>${linea2}` : '');
-    $('#vguardar', v).textContent = cart.length ? `Cobrar ${money0(t)}${extraN() ? ` +${money0(extraN())}` : ''}` : 'Cobrar';
+    $('#vguardar', v).textContent = !cart.length ? 'Cobrar' : metodo === 'credito' ? `Dar a crédito ${money0(t)}` : `Cobrar ${money0(t)}${extraN() ? ` +${money0(extraN())}` : ''}`;
   }
 
   async function cobrar(e) {
@@ -407,6 +420,10 @@ VIEWS['ventas'] = async (v, q) => {
     if (!cart.length) return toast('Agrega al menos un producto', true);
     if (!cliente) { $('#cliente', v).focus(); return toast('Escribe el nombre del cliente', true); }
     if (!metodo) return toast('Elige efectivo, transferencia o mixto', true);
+    if (metodo === 'credito' && $('#telefono', v).value.replace(/\D/g, '').length < 10) {
+      $('#telefono', v).focus();
+      return toast('Para vender a crédito escribe el teléfono del cliente (10 dígitos)', true);
+    }
     if (cart.some((l) => opDe(l.opcion_id)?.paquete) && $('#telefono', v).value.replace(/\D/g, '').length < 10) {
       $('#telefono', v).focus();
       return toast('Para vender Pack 28 g o 3×2 escribe el teléfono del cliente (10 dígitos)', true);
@@ -419,6 +436,37 @@ VIEWS['ventas'] = async (v, q) => {
     const t = total();
     const ef = efectivoN(t), ex = extraN();
     if (metodo === 'mixto' && !(ef > 0 && ef < t)) { $('#efmix', v).focus(); return toast(`Escribe cuánto pagó en efectivo (menos de ${money0(t)})`, true); }
+    // ¿ya hay una venta hoy a este cliente o a este teléfono? Solo avisa: se puede seguir
+    const dup = await API.rpc('posibles_duplicados', { p_cliente: cliente, p_telefono: $('#telefono', v).value || null }).catch(() => []);
+    if (dup && dup.length) {
+      const lista = dup.slice(0, 4).map((d) => `• ${folio(d.id)} · ${d.cliente} · ${money0(d.total)} · ${new Date(d.fecha).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}${d.vendedor ? ` · ${d.vendedor}` : ''}${d.por === 'telefono' ? ' (mismo teléfono)' : ''}`).join('\n');
+      const seguir = await confirmar('⚠️ ¿Venta duplicada?',
+        `Hoy ya ${dup.length === 1 ? 'hay una venta' : `hay ${dup.length} ventas`} a este cliente:\n${lista}\n\nSi es una compra nueva, regístrala. Si es la misma, regresa para no contarla dos veces.`,
+        'Sí, es otra venta');
+      if (!seguir) return;
+    }
+    if (metodo === 'credito') {
+      const ab = Math.max(0, +abono || 0);
+      if (ab >= t) return toast('Si paga todo hoy no es crédito: elige transferencia o efectivo', true);
+      if (!(await confirmar('💳 Venta a crédito', `${cliente} se lleva ${money0(t)} y ${ab > 0 ? `paga hoy ${money0(ab)}` : 'no paga nada hoy'}.\nQueda a deber ${money0(t - ab)} y aparecerá en Deudores hasta que pague.`, 'Dar a crédito'))) return;
+      let rc = null;
+      await run(btn, async () => {
+        rc = await API.rpc('vender_a_credito', {
+          p_cliente: cliente, p_vendedor: vendId, p_tipo: tipo,
+          p_items: cart.map((l) => ({ opcion_id: l.opcion_id, cantidad: l.cantidad, promo: l.promo })),
+          p_nota: $('#nota', v).value || null, p_telefono: $('#telefono', v).value || null,
+          p_descuento: descuento(), p_municipio: tipo === 'paqueteria' ? munId : null,
+          p_abono: ab, p_abono_cuenta: abonoCta,
+        });
+      });
+      if (!rc) return;
+      cart = []; metodo = ''; ajuste.valor = ''; tipo = 'local'; munId = null; limpiarForm = true; efMix = ''; extra = ''; extraAbierto = false; abono = ''; abonoCta = 'banco';
+      FX.fiesta();
+      toast(`Venta ${folio(rc.venta_id)} a crédito: debe ${money(rc.por_cobrar)}`);
+      API.rpc('clientes_lista').then((c) => { clientes = c; }).catch(() => {});
+      await cargarTodo();
+      return;
+    }
     if (hayTr()) {
       const r = await alertaTransferencia(t - ef + ex, cliente, ex);
       if (!r) return;

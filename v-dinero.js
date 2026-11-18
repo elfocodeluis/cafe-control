@@ -269,6 +269,7 @@ VIEWS['resumen'] = async (v) => {
   v.innerHTML = `<div class="fin-head" id="fin-h"><div><h1>Finanzas</h1><div class="muted small">${hoyTxt()}</div></div>
       <div class="tools">${rangoHTML('hoy', true, { quick: [['hoy', 'Hoy'], ['semana', 'Semana'], ['mes', 'Mes'], ['anio', 'Año']], cal: true })}</div></div>
     <div class="fin-per" id="fin-per"></div>
+    <div id="fin-deu"></div>
     <div id="res"></div>
     <div class="ana-head" id="ana-h"><div><span class="eyebrow">Tendencia</span><h1 id="ana-tit">Analítica</h1><div class="muted small" id="ana-sub"></div></div></div>
     ${tabsHTML('ana', [['tend', 'Tendencia de ventas'], ['vend', 'Por vendedor']], 'tend')}
@@ -347,6 +348,7 @@ VIEWS['resumen'] = async (v) => {
 
   };
   const leer = bindRango($('#fin-h', v), cargar);
+  Deudores.aviso($('#fin-deu', v));
   await cargar(leer());
 };
 
