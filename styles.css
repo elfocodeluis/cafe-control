@@ -793,6 +793,7 @@ body.arrastrando .cesta { border-color: var(--accent); background: var(--accent-
 .pvg-car { font-size: 22px; color: var(--muted); transition: transform .2s; }
 .pvg[open] .pvg-car { transform: rotate(90deg); }
 .pvg-b { padding: 0 14px 6px; border-top: 1px dashed var(--border); }
+.pvg-ab { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 12px 0 4px; }
 .pvs-tot { display: flex; justify-content: space-between; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
 .pvs-tot b { color: var(--warn); font-size: 18px; }
 .paq-list { display: grid; gap: 8px; }

@@ -547,7 +547,7 @@ VIEWS['caja'] = async (v, q) => {
                 <span class="pvg-t"><b>${esc(g.nombre)}</b><span class="small muted">${g.items.length} ${g.items.length === 1 ? 'compra' : 'compras'} · pagado ${money0(g.pagado)}</span>
                   <span class="bar"><i style="width:${pct}%"></i></span></span>
                 <span class="pvg-v">${g.saldo ? `<small>se le debe</small><b>${money0(g.saldo)}</b>` : '<span class="badge b-ok">Pagado ✓</span>'}</span><span class="pvg-car">›</span></summary>
-              <div class="pvg-b">${g.items.map((x) => { const pc = x.monto ? (x.pagado / x.monto) * 100 : 0; return `<div class="deuda ${+x.saldo ? '' : 'pagada'}">
+              <div class="pvg-b">${g.saldo && abiertas > 1 ? `<div class="pvg-ab"><button type="button" class="btn btn-primary" data-abonar-prov="${esc(g.k)}">🤝 Abonar a toda la cuenta</button><span class="small muted">Se reparte solo, de la compra más vieja a la más nueva</span></div>` : ''}${g.items.map((x) => { const pc = x.monto ? (x.pagado / x.monto) * 100 : 0; return `<div class="deuda ${+x.saldo ? '' : 'pagada'}">
                 <div class="deuda-h"><span><b>${esc(String(x.concepto || '').split(' · ').filter((t) => t.trim().toUpperCase() !== g.k).join(' · '))}</b><div class="small muted">${fecha(x.fecha)}</div></span>
                   ${+x.saldo ? `<button class="btn btn-sm btn-primary" data-abonar="${x.id}">Abonar</button>` : '<span class="badge b-ok">Pagada ✓</span>'}</div>
                 <div class="bar bar-lg"><i style="width:${pc}%"></i></div>
@@ -576,6 +576,7 @@ VIEWS['caja'] = async (v, q) => {
     $$('[data-depositar]', box).forEach((b) => b.addEventListener('click', () => formDinero('deposito', { vendedor: b.dataset.depositar })));
     $$('[data-pcom]', box).forEach((b) => b.addEventListener('click', () => formDinero('pago_comision', { vendedor: b.dataset.pcom, origen: b.dataset.o })));
     $$('[data-abonar]', box).forEach((b) => b.addEventListener('click', () => formDinero('pago_proveedor', { deuda: +b.dataset.abonar })));
+    $$('[data-abonar-prov]', box).forEach((b) => b.addEventListener('click', () => formDinero('pago_proveedor', { prov: b.dataset.abonarProv })));
     $$('[data-op]', box).forEach((b) => b.addEventListener('click', () => formDinero(b.dataset.op)));
     $('#nueva-deuda', box).addEventListener('click', formDeuda);
     const provs = [...new Set(d.deudas.map((x) => String(x.proveedor || '').trim().toUpperCase()).filter(Boolean))];
@@ -813,7 +814,12 @@ VIEWS['caja'] = async (v, q) => {
     // comisión: si el vendedor trae efectivo, de entrada se descuenta de ahí
     const comDef = () => (pre.origen === 'banco' || !(+(vs.find((x) => x.vendedor_id === vend)?.en_poder || 0) > 0) ? 'banco' : vend);
     let origen = tipo === 'deposito' ? vend : tipo === 'pago_comision' ? comDef() : 'banco';
-    let deuda = pre.deuda || abiertas[0]?.id;
+    // abono a toda la cuenta de un proveedor: deuda = 'p:NOMBRE' (se reparte de la compra más vieja a la más nueva)
+    const provKey = (x) => String(x.proveedor || '').trim().toUpperCase();
+    const cuentas = [];
+    abiertas.forEach((x) => { const k = provKey(x); let c = cuentas.find((y) => y.k === k); if (!c) cuentas.push(c = { k, nombre: x.proveedor, n: 0, saldo: 0 }); c.n++; c.saldo += +x.saldo; });
+    const esCuenta = (v) => String(v).startsWith('p:');
+    let deuda = pre.prov ? 'p:' + pre.prov : pre.deuda || abiertas[0]?.id;
     let cat = 'gasolina';
     const vx = (id) => vs.find((x) => x.vendedor_id === id);
     const conceptoReq = ['gasto', 'ingreso', 'ajuste'].includes(tipo);
@@ -821,7 +827,7 @@ VIEWS['caja'] = async (v, q) => {
       if (tipo === 'deposito') return +(vx(vend)?.en_poder || 0);
       if (tipo === 'pago_comision') { const p = +(vx(vend)?.comision_pendiente || 0); return origen === 'banco' || origen === 'mixto' ? p : Math.min(p, +(vx(origen)?.en_poder || 0)); }
       if (tipo === 'pago_envio') return +d.por_pagar.paqueteria;
-      if (tipo === 'pago_proveedor') return +(abiertas.find((x) => x.id === +deuda)?.saldo || 0);
+      if (tipo === 'pago_proveedor') return esCuenta(deuda) ? +(cuentas.find((c) => 'p:' + c.k === deuda)?.saldo || 0) : +(abiertas.find((x) => x.id === +deuda)?.saldo || 0);
       return '';
     };
     const pickVend = (lista, sub) => `<div class="pick-row" id="dvend">${lista.map((x) => `<button type="button" class="pick ${vend === x.vendedor_id ? 'on' : ''}" data-v="${x.vendedor_id}"><span class="mini-ava">${avatar(x)}</span>${esc(x.nombre)}<small>${sub(x)}</small></button>`).join('')}</div>`;
@@ -849,7 +855,8 @@ VIEWS['caja'] = async (v, q) => {
       <form id="fdin">
         ${tipo === 'deposito' ? `<div class="field"><span>¿Quién depositó?</span>${pickVend(vs, (x) => `trae ${money0(x.en_poder)}`)}</div>` : ''}
         ${tipo === 'pago_comision' ? `<div class="field"><span>¿A quién?</span>${pickVend(conPend, (x) => `se le deben ${money0(x.comision_pendiente)}`)}</div>` : ''}
-        ${tipo === 'pago_proveedor' ? `<label class="field"><span>¿A quién le abonas?</span><select name="deuda">${abiertas.map((x) => `<option value="${x.id}" ${x.id === +deuda ? 'selected' : ''}>${esc(x.proveedor)} · ${esc(x.concepto)} — resta ${money0(x.saldo)}</option>`).join('')}</select></label>` : ''}
+        ${tipo === 'pago_proveedor' ? `<label class="field"><span>¿A quién le abonas?</span><select name="deuda">${cuentas.some((c) => c.n > 1) ? `<optgroup label="Toda la cuenta">${cuentas.filter((c) => c.n > 1).map((c) => `<option value="p:${esc(c.k)}" ${'p:' + c.k === deuda ? 'selected' : ''}>${esc(c.nombre)} · toda la cuenta (${c.n} compras) — se le debe ${money0(c.saldo)}</option>`).join('')}</optgroup><optgroup label="Una compra">` : ''}${abiertas.map((x) => `<option value="${x.id}" ${!esCuenta(deuda) && x.id === +deuda ? 'selected' : ''}>${esc(x.proveedor)} · ${esc(x.concepto)} — resta ${money0(x.saldo)}</option>`).join('')}${cuentas.some((c) => c.n > 1) ? '</optgroup>' : ''}</select></label>
+          <div class="small muted" id="dcuenta" ${esCuenta(deuda) ? '' : 'hidden'} style="margin:-4px 0 10px">El abono se reparte solo entre sus compras, de la más vieja a la más nueva.</div>` : ''}
         ${tipo === 'gasto' ? `<div class="field"><span>¿En qué?</span><div class="chips" id="dcat">${CATS_GASTO.map(([k, e, l]) => `<button type="button" class="chip ${k === cat ? 'on' : ''}" data-k="${k}">${e} ${l}</button>`).join('')}</div></div>` : ''}
         ${tipo !== 'deposito' ? `<div class="field"><span>${['ingreso'].includes(tipo) ? '¿A dónde entra?' : tipo === 'ajuste' ? '¿Qué saldo corriges?' : '¿De dónde sale?'}</span><div id="dorig-w">${pickOrigen()}</div></div>` : ''}
         <label class="field"><span>Monto</span><input name="m" type="number" step="any" ${tipo === 'ajuste' ? '' : 'min="0.01"'} required inputmode="decimal" class="input-big" value="${sugerido()}"></label>
@@ -899,7 +906,7 @@ VIEWS['caja'] = async (v, q) => {
       if (tipo === 'pago_comision') { origen = comDef(); $('#dorig-w', dlg).innerHTML = pickOrigen(); bindOrigen(); }
       f.m.value = sugerido(); pintaMix();
     }));
-    f.deuda?.addEventListener('change', () => { deuda = +f.deuda.value; f.m.value = sugerido(); pintaMix(); });
+    f.deuda?.addEventListener('change', () => { deuda = esCuenta(f.deuda.value) ? f.deuda.value : +f.deuda.value; $('#dcuenta', dlg).hidden = !esCuenta(deuda); f.m.value = sugerido(); pintaMix(); });
     f.addEventListener('submit', async (e) => {
       e.preventDefault();
       if (mix?.err) { $('#dmix [data-efmix]', dlg).focus(); return toast(mix.err, true); }
@@ -911,6 +918,15 @@ VIEWS['caja'] = async (v, q) => {
           await API.rpc('pagar_comision_otro_efectivo', { p_vendedor: vend, p_pagador: pagador, p_monto: +f.m.value, p_efectivo: esMix ? mix.ef : +f.m.value, p_concepto: f.c.value || null });
           dlg.close(); FX.caja();
           toast(`Comisión pagada a ${vx(vend).nombre} con efectivo de ${vx(pagador).nombre}`); load(); recargarHist();
+          return;
+        }
+        if (tipo === 'pago_proveedor' && esCuenta(deuda)) {
+          const c = cuentas.find((y) => 'p:' + y.k === deuda);
+          const r = await API.rpc('abonar_proveedor', { p_proveedor: c.k, p_cuenta: esMix ? 'mixto' : enCaja ? 'caja' : 'banco', p_monto: +f.m.value,
+            p_concepto: f.c.value || null, p_vendedor: esMix ? mixVend : enCaja ? origen : null, p_efectivo: esMix ? mix.ef : null });
+          dlg.close(); FX.caja();
+          toast(+r.resta > 0 ? `Abonado ${money0(+f.m.value)} a ${c.nombre} · se le deben ${money0(r.resta)}` : `¡Cuenta de ${c.nombre} pagada!`);
+          load(); recargarHist();
           return;
         }
         await API.rpc('registrar_dinero', { p_tipo: tipo, p_cuenta: esMix ? 'mixto' : enCaja ? 'caja' : 'banco', p_monto: +f.m.value, p_concepto: f.c.value,
